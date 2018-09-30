@@ -202,24 +202,32 @@ public class HelloSceneformActivity extends AppCompatActivity {
         imgView = findViewById(R.id.imgview);
 
 
+        Display display = this.getWindowManager().getDefaultDisplay();
+        int stageWidth = display.getWidth();
+        int stageHeight = display.getHeight();
+        Log.v("myTag","screen size "+Integer.toString(stageWidth)+","+Integer.toString(stageHeight));
+
         //ImageView imgview=findViewById(R.id.imgview);
 
         //imgview.setImageResource(R.drawable.ic_launcher);
 
         arFragment.setActivity(this);//add by bo
-        try {
+        /*try {
             Session session = new Session(this);
             Config config = new Config(session);
             config.setFocusMode(Config.FocusMode.AUTO);
             session.configure(config);
         } catch (Exception e) {
 
-        }
+        }*/
 
-//        arSession = arFragment.getArSceneView().getSession();
-//        Config config = arSession.getConfig();
-//        config.setFocusMode(Config.FocusMode.AUTO);
-//        arSession.configure(config);
+
+        /*
+        arSession = arFragment.getArSceneView().getSession();
+        Config config = arSession.getConfig();
+        config.setFocusMode(Config.FocusMode.AUTO);
+        arSession.configure(config);
+        */
         arFragment.setOnFrameListener((frameTime, frame) -> {
             float curTime=frameTime.getStartSeconds();
             Bitmap bitmap=null;//Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
