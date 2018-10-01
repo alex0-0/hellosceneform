@@ -212,22 +212,6 @@ public class HelloSceneformActivity extends AppCompatActivity {
         //imgview.setImageResource(R.drawable.ic_launcher);
 
         arFragment.setActivity(this);//add by bo
-        /*try {
-            Session session = new Session(this);
-            Config config = new Config(session);
-            config.setFocusMode(Config.FocusMode.AUTO);
-            session.configure(config);
-        } catch (Exception e) {
-
-        }*/
-
-
-        /*
-        arSession = arFragment.getArSceneView().getSession();
-        Config config = arSession.getConfig();
-        config.setFocusMode(Config.FocusMode.AUTO);
-        arSession.configure(config);
-        */
         arFragment.setOnFrameListener((frameTime, frame) -> {
             float curTime=frameTime.getStartSeconds();
             Bitmap bitmap=null;//Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
@@ -242,7 +226,6 @@ public class HelloSceneformActivity extends AppCompatActivity {
                 Log.d("myTag", msg);
                 //setImage(img);
 
-                //TODO: should the luminanceCopy get scaled just as image does
                 //TODO: is the conversion done in correct way?
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
                 bitmap=imageToBitmap(img);
@@ -452,7 +435,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
         final Canvas canvas = new Canvas(croppedBitmap);
         canvas.drawBitmap(bitmap, frameToCropTransform, null);
 
-        setImage(croppedBitmap);
+//        setImage(croppedBitmap);
         runInBackground(
                 new Runnable() {
                     @Override

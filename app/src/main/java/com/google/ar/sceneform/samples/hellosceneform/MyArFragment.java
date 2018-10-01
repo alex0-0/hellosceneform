@@ -10,9 +10,11 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.google.ar.core.CameraConfig;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Session;
+import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.sceneform.ArSceneView;
 import com.google.ar.sceneform.FrameTime;
 import com.google.ar.sceneform.HitTestResult;
@@ -20,12 +22,13 @@ import com.google.ar.sceneform.Scene;
 import com.google.ar.sceneform.samples.hellosceneform.HelloSceneformActivity;
 import com.google.ar.sceneform.ux.ArFragment;
 
+import java.util.List;
+
 public class MyArFragment extends ArFragment {
     private HelloSceneformActivity activity=null;
     private boolean configured=false;
 
     FrameListener listener = null;
-
 
     void setAutoFocus(){
         Session arSession = getArSceneView().getSession();
@@ -34,14 +37,33 @@ public class MyArFragment extends ArFragment {
         arSession.configure(config);
     }
 
+
+    void setResolution(){
+        Session arSession = getArSceneView().getSession();
+        List<CameraConfig> ccl = arSession.getSupportedCameraConfigs();
+        CameraConfig c = null;
+        int w = 0;
+        for (CameraConfig cc : ccl) {
+            if (w < cc.getImageSize().getWidth()) {
+                c = cc;
+                w = cc.getImageSize().getWidth();
+            }
+        }
+        arSession.pause();
+        arSession.setCameraConfig(c);
+        try {
+            arSession.resume();
+        } catch (CameraNotAvailableException e) {
+            e.printStackTrace();
+        }
+    }
+
     public interface FrameListener {
         void onFrame(FrameTime frameTime, Frame frame);
     }
 
     public void setOnFrameListener(FrameListener listener) {
-
         this.listener = listener;
-
     }
 
     @Override
@@ -61,6 +83,7 @@ public class MyArFragment extends ArFragment {
 
         if(!configured){
             setAutoFocus();
+            setResolution();
             configured=true;
         }
 

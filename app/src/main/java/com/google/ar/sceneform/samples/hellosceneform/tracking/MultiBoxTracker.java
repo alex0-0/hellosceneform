@@ -176,7 +176,8 @@ public class MultiBoxTracker {
     frameToCanvasMatrix =
         ImageUtils.getTransformationMatrix(
             frameWidth,
-            frameHeight, w, h,
+            frameHeight,
+                w, h,
 //            (int) (multiplier * (rotated ? frameHeight : frameWidth)),
 //            (int) (multiplier * (rotated ? frameWidth : frameHeight)),
             sensorOrientation,
