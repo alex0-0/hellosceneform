@@ -230,6 +230,10 @@ public class HelloSceneformActivity extends AppCompatActivity {
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
                 bitmap=imageToBitmap(img);
 
+                //added by bo to scale down the image
+                bitmap=Bitmap.createScaledBitmap(bitmap, 360,640,false);
+
+
                 img.close();
                 //if(bitmap!=null) setImage(bitmap);
                 //else return;
