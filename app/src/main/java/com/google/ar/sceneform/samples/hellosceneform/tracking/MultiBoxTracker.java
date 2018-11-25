@@ -32,13 +32,15 @@ import android.widget.Toast;
 
 import com.google.ar.sceneform.samples.hellosceneform.env.Logger;
 
-import com.google.ar.sceneform.samples.hellosceneform.Classifier.Recognition;
 import com.google.ar.sceneform.samples.hellosceneform.env.BorderedText;
 import com.google.ar.sceneform.samples.hellosceneform.env.ImageUtils;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+
+import edu.umb.cs.imageprocessinglib.model.BoxPosition;
+import edu.umb.cs.imageprocessinglib.model.Recognition;
 
 /**
  * A tracker wrapping ObjectTracker that also handles non-max suppression and matching existing
@@ -160,7 +162,7 @@ public class MultiBoxTracker {
   }
 
   public synchronized void trackResults(
-      final List<Recognition> results, final byte[] frame, final long timestamp) {
+          final List<Recognition> results, final byte[] frame, final long timestamp) {
     logger.i("Processing %d results from %d", results.size(), timestamp);
     processResults(timestamp, results, frame);
   }
@@ -265,7 +267,8 @@ public class MultiBoxTracker {
       if (result.getLocation() == null) {
         continue;
       }
-      final RectF detectionFrameRect = new RectF(result.getLocation());
+      BoxPosition pos = result.getLocation();
+      final RectF detectionFrameRect = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
 
       final RectF detectionScreenRect = new RectF();
       rgbFrameToScreen.mapRect(detectionScreenRect, detectionFrameRect);
@@ -293,7 +296,8 @@ public class MultiBoxTracker {
       for (final Pair<Float, Recognition> potential : rectsToTrack) {
         final TrackedRecognition trackedRecognition = new TrackedRecognition();
         trackedRecognition.detectionConfidence = potential.first;
-        trackedRecognition.location = new RectF(potential.second.getLocation());
+        BoxPosition pos = potential.second.getLocation();
+        trackedRecognition.location = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
         trackedRecognition.trackedObject = null;
         trackedRecognition.title = potential.second.getTitle();
         trackedRecognition.color = COLORS[trackedObjects.size()];
@@ -314,8 +318,10 @@ public class MultiBoxTracker {
 
   private void handleDetection(
       final byte[] frameCopy, final long timestamp, final Pair<Float, Recognition> potential) {
+    BoxPosition pos = potential.second.getLocation();
+    RectF rectF = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
     final ObjectTracker.TrackedObject potentialObject =
-        objectTracker.trackObject(potential.second.getLocation(), timestamp, frameCopy);
+        objectTracker.trackObject(rectF, timestamp, frameCopy);
 
     final float potentialCorrelation = potentialObject.getCurrentCorrelation();
     logger.v(

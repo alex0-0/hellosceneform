@@ -5,6 +5,7 @@ import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.os.Trace;
 import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -15,6 +16,9 @@ import java.util.PriorityQueue;
 import java.util.Vector;
 import org.tensorflow.Operation;
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
+
+import edu.umb.cs.imageprocessinglib.model.Recognition;
+import edu.umb.cs.imageprocessinglib.tensorflow.Classifier;
 
 /** A classifier specialized to label images using TensorFlow. */
 public class TensorFlowImageClassifier implements Classifier {
@@ -155,8 +159,7 @@ public class TensorFlowImageClassifier implements Classifier {
         for (int i = 0; i < outputs.length; ++i) {
             if (outputs[i] > THRESHOLD) {
                 pq.add(
-                        new Recognition(
-                                "" + i, labels.size() > i ? labels.get(i) : "unknown", outputs[i], null));
+                        new Recognition(i, labels.size() > i ? labels.get(i) : "unknown", outputs[i], null, 300));
             }
         }
         final ArrayList<Recognition> recognitions = new ArrayList<Recognition>();

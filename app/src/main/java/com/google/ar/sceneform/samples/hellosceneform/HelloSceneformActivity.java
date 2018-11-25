@@ -52,6 +52,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
+
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
@@ -86,6 +87,11 @@ import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.List;
 
+import edu.umb.cs.imageprocessinglib.ImageProcessor;
+import edu.umb.cs.imageprocessinglib.ObjectDetector;
+import edu.umb.cs.imageprocessinglib.model.BoxPosition;
+import edu.umb.cs.imageprocessinglib.model.Recognition;
+
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
  */
@@ -101,7 +107,8 @@ public class HelloSceneformActivity extends AppCompatActivity {
 
     private float last_chk_time=0;
     private boolean opencvLoaded=false;
-    private Classifier classifier;
+//    private Classifier classifier;
+    private ObjectDetector objectDetector;
 
     private OverlayView trackingOverlay;
     /*** from tensorflow sample code***/
@@ -177,7 +184,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
 
     private byte[] luminanceCopy;
 
-    private Classifier detector;
+//    private Classifier detector;
     private BorderedText borderedText;
 
     static Boolean once_token = false;
@@ -239,7 +246,8 @@ public class HelloSceneformActivity extends AppCompatActivity {
                 //else return;
             }catch(Exception e){System.out.println("myTag"+e); return;}
 
-            if(detector==null) initTF(bitmap);
+//            if(detector==null) initTF(bitmap);
+            if(objectDetector==null) initTF(bitmap);
 
             processImage(bitmap);
 
@@ -314,93 +322,64 @@ public class HelloSceneformActivity extends AppCompatActivity {
 
     }
 
-    void initTF(Bitmap bitmap){
+    void initTF(Bitmap bitmap) {
         previewWidth = bitmap.getWidth();
         previewHeight = bitmap.getHeight();
+        sensorOrientation = rotation - getScreenOrientation();
+        objectDetector = new ObjectDetector();
+        objectDetector.init(this);
 
         //last_chk_time=curTime;
         /*** from detector activity in tensorflow sample code***/
-        final float textSizePx =
-                TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
-        borderedText = new BorderedText(textSizePx);
-        borderedText.setTypeface(Typeface.MONOSPACE);
-
+//        final float textSizePx =
+//                TypedValue.applyDimension(
+//                        TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+//        borderedText = new BorderedText(textSizePx);
+//        borderedText.setTypeface(Typeface.MONOSPACE);
+//
         //if(tracker==null)
         tracker = new MultiBoxTracker(this);
 
 
-        int cropSize = TF_OD_API_INPUT_SIZE;
-        if (MODE == DetectorMode.YOLO) {
-            detector =
-                    TensorFlowYoloDetector.create(
-                            getAssets(),
-                            YOLO_MODEL_FILE,
-                            YOLO_INPUT_SIZE,
-                            YOLO_INPUT_NAME,
-                            YOLO_OUTPUT_NAMES,
-                            YOLO_BLOCK_SIZE);
-            cropSize = YOLO_INPUT_SIZE;
-        } else if (MODE == DetectorMode.MULTIBOX) {
-            detector =
-                    TensorFlowMultiBoxDetector.create(
-                            getAssets(),
-                            MB_MODEL_FILE,
-                            MB_LOCATION_FILE,
-                            MB_IMAGE_MEAN,
-                            MB_IMAGE_STD,
-                            MB_INPUT_NAME,
-                            MB_OUTPUT_LOCATIONS_NAME,
-                            MB_OUTPUT_SCORES_NAME);
-            cropSize = MB_INPUT_SIZE;
-        } else {
-            try {
-                detector = TensorFlowObjectDetectionAPIModel.create(
-                        getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
-                cropSize = TF_OD_API_INPUT_SIZE;
-            } catch (final IOException e) {
-                LOGGER.e("Exception initializing classifier!", e);
-                Toast toast =
-                        Toast.makeText(
-                                getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
-                toast.show();
-                finish();
-            }
-        }
 
 
-
-
-        sensorOrientation = rotation - getScreenOrientation();
-        /*
-        LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
-
-        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
-        */
-        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
-
-        croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888);
-
+//        sensorOrientation = rotation - getScreenOrientation();
+//        /*
+//        LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
+//
+//        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
+//        */
+//        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+//
+        croppedBitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888);
+//
         frameToCropTransform =
                 ImageUtils.getTransformationMatrix(
                         previewWidth, previewHeight,
-                        cropSize, cropSize,
+                        300, 300,
                         sensorOrientation, MAINTAIN_ASPECT);
-        cropToFrameTransform = new Matrix();
-        frameToCropTransform.invert(cropToFrameTransform);
-
-        /**/
-        float h = arFragment.getView().getHeight();//1944
-        float w = arFragment.getView().getWidth();//1080
-        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
-        float dpHeight = 1005;//trackingOverlay.getHeight() / 2;
-        float dpWidth = 540;//trackingOverlay.getWidth() / 2;
-        //75 is the height of image view
-//        frameToDisplayTransform =
+//        frameToCropTransform = new Matrix();
+//        frameToCropTransform.postRotate(sensorOrientation);
+//        frameToCropTransform =
 //                ImageUtils.getTransformationMatrix(
 //                        previewWidth, previewHeight,
-//                        (int)dpHeight, (int)dpWidth,
-//                        0, MAINTAIN_ASPECT);
+//                        previewWidth, previewHeight,
+//                        sensorOrientation, MAINTAIN_ASPECT);
+        cropToFrameTransform = new Matrix();
+        frameToCropTransform.invert(cropToFrameTransform);
+//
+//        /**/
+//        float h = arFragment.getView().getHeight();//1944
+//        float w = arFragment.getView().getWidth();//1080
+        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+//        float dpHeight = 1005;//trackingOverlay.getHeight() / 2;
+//        float dpWidth = 540;//trackingOverlay.getWidth() / 2;
+//        //75 is the height of image view
+////        frameToDisplayTransform =
+////                ImageUtils.getTransformationMatrix(
+////                        previewWidth, previewHeight,
+////                        (int)dpHeight, (int)dpWidth,
+////                        0, MAINTAIN_ASPECT);
         //track object in AR fragment view
         trackingOverlay.addCallback(
                 new OverlayView.DrawCallback() {
@@ -437,6 +416,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
         //System.arraycopy(originalLuminance, 0, luminanceCopy, 0, originalLuminance.length);
 
         final Canvas canvas = new Canvas(croppedBitmap);
+//        final Canvas canvas = new Canvas(rgbFrameBitmap);
         canvas.drawBitmap(bitmap, frameToCropTransform, null);
 
 //        setImage(croppedBitmap);
@@ -447,92 +427,16 @@ public class HelloSceneformActivity extends AppCompatActivity {
                         final long startTime = SystemClock.uptimeMillis();
 
                         Log.d("myTag","before recognizeimage");
-                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
-
-                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-//                        final Canvas canvas = new Canvas(cropCopyBitmap);
-//                        final Paint paint = new Paint();
-//                        paint.setColor(Color.RED);
-//                        paint.setStyle(Paint.Style.STROKE);
-//                        paint.setStrokeWidth(2.0f);
-
-                        float minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-                        switch (MODE) {
-                            case TF_OD_API:
-                                minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-                                break;
-                            case MULTIBOX:
-                                minimumConfidence = MINIMUM_CONFIDENCE_MULTIBOX;
-                                break;
-                            case YOLO:
-                                minimumConfidence = MINIMUM_CONFIDENCE_YOLO;
-                                break;
-                        }
-
-                        final List<Classifier.Recognition> mappedRecognitions =
-                                new LinkedList<Classifier.Recognition>();
-                        String str=String.format("results:%d",results.size());
-
-                        DisplayMetrics displayMetrics = new DisplayMetrics();
-                        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-//                        Display display = getWindowManager().getDefaultDisplay();
-//                        Point size = new Point();
-//                        display.getSize(size);
-                        int dpi = displayMetrics.densityDpi;
-                        int height = displayMetrics.heightPixels;//2016
-                        int width = displayMetrics.widthPixels;//1080
-//                        float density = getResources().getDisplayMetrics().density;
-
-                        if (!once_token) {
-                            once_token = true;
-////                            trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
-//                        float dHeight = trackingOverlay.getHeight();
-//                        float dWidth = trackingOverlay.getWidth();
-//                        float hhh = imgView.getHeight();
-//                            float hhb = croppedBitmap.getHeight();
-//                            double dpHeight = (dHeight - hhh)  * 0.5;
-////                            double dpHeight = 2016  * 0.5;
-////                                    (trackingOverlay.getHeight() - imgView.getHeight()) * (imgView.getHeight()/cropCopyBitmap.getHeight());
-//                            double dpWidth = dWidth * 0.5;
-////                                    trackingOverlay.getWidth() * (imgView.getHeight()/cropCopyBitmap.getHeight());
-//                            //75 is the height of image view
-//                            frameToDisplayTransform =
-//                                    ImageUtils.getTransformationMatrix(
-//                                            previewWidth,previewHeight,
-//                                            (int)640,(int)480,
-//                                            0, false);
-
-//                            runOnUiThread(new Runnable() {
-//                                @Override
-//                                public void run() {
-//                                    ViewGroup.LayoutParams tp = trackingOverlay.getLayoutParams();
-////                                    tp.height = height;
-////                                    tp.width = width;
-//                                    tp.height = previewWidth * 2;
-//                                    tp.width = previewHeight * 2;
-//                                    trackingOverlay.setLayoutParams(tp);
-//                                    ViewGroup.LayoutParams rp = arFragment.getArSceneView().getLayoutParams();
-////                                    rp.height = height;
-////                                    rp.width = width;
-//                                    rp.height = previewWidth * 2;
-//                                    rp.width = previewHeight * 2;
-//                                    arFragment.getArSceneView().setLayoutParams(rp);
-//                                    ViewGroup.LayoutParams rv = arFragment.getView().getLayoutParams();
-////                                    rv.height = height;
-////                                    rv.width = width;
-//                                    rv.height = previewWidth * 2;
-//                                    rv.width = previewHeight * 2;
-//                                    arFragment.getView().setLayoutParams(rv);
-//                                }
-//                            });
-                        }
-
+                        final List<Recognition> results = objectDetector.recognizeImage(croppedBitmap);
+//                        final List<Recognition> results = objectDetector.recognizeImage(rgbFrameBitmap);
+//
                         org.opencv.core.Rect roi = new org.opencv.core.Rect();
-
-                        Log.d("myTag",str);
-                        for (final Classifier.Recognition result : results) {
-                            final RectF location = result.getLocation();
-                            if (location != null && result.getConfidence() >= minimumConfidence) {
+//
+//                        Log.d("myTag",str);
+                        for (final Recognition result : results) {
+                            BoxPosition pos = result.getLocation();
+                            final RectF location = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
+                            if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
 
                                 roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
                                 Log.d(TAG, "main: rect before transform " + location.toString());
@@ -544,32 +448,34 @@ public class HelloSceneformActivity extends AppCompatActivity {
 //                                float wRatio = width / previewHeight / 2.0f;
 //                                RectF loc = new RectF(location.left*hRatio, location.top*wRatio, location.right*hRatio, location.bottom*wRatio);
 //                                result.setLocation(loc);
-                                result.setLocation(location);
-                                mappedRecognitions.add(result);
+                                result.setLocation(new BoxPosition(location.left, location.top, location.right, location.bottom));
+//                                mappedRecognitions.add(result);
                             }
                         }
 
-                        if (mappedRecognitions.size() > 0) {
+                        if (results.size() > 0) {
                             Mat mat = new Mat();
-                            Utils.bitmapToMat(cropCopyBitmap, mat);
+                            Utils.bitmapToMat(croppedBitmap, mat);
                             Mat cropMat = new Mat(mat, roi);
                             Bitmap tBM = Bitmap.createBitmap(roi.width, roi.height, Bitmap.Config.ARGB_8888);
                             Utils.matToBitmap(cropMat, tBM);
                             mat.release();
                             cropMat.release();
-//                            setImage(tBM);
+                            setImage(tBM);
                         }
 
 //                        RectF rectF = new RectF(9, 79, 283, 216);//previewWidth, previewHeight);
 //                        cropToFrameTransform.mapRect(rectF);
-                        RectF rectF = new RectF(0, 0, previewWidth, previewHeight);
-                        Classifier.Recognition result = new Classifier.Recognition("1434", "test", 0.99f, rectF);
+//                        RectF rectF = new RectF(0, 0, previewWidth, previewHeight);
+//                        Classifier.Recognition result = new Classifier.Recognition("1434", "test", 0.99f, rectF);
 //                        mappedRecognitions.add(result);
 
 //                        str=String.format("mapped:%d, cropped image size(%d, %d)",mappedRecognitions.size(), bitmap.getWidth(), bitmap.getHeight());
 //                        Log.d("myTag",str);
-                        tracker.trackResults(mappedRecognitions, luminanceCopy, currTimestamp);
-                        if (mappedRecognitions.size() > 0)
+//                        tracker.trackResults(mappedRecognitions, luminanceCopy, currTimestamp);
+                        tracker.trackResults(results, luminanceCopy, currTimestamp);
+//                        if (mappedRecognitions.size() > 0)
+                        if (results.size() > 0)
                             trackingOverlay.postInvalidate();
                     }
                 });
