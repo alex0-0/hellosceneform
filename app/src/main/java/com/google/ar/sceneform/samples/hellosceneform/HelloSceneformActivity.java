@@ -448,7 +448,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
 //                                float wRatio = width / previewHeight / 2.0f;
 //                                RectF loc = new RectF(location.left*hRatio, location.top*wRatio, location.right*hRatio, location.bottom*wRatio);
 //                                result.setLocation(loc);
-                                result.setLocation(new BoxPosition(location.left, location.top, location.right, location.bottom));
+                                result.setLocation(new BoxPosition(location.left, location.top, location.width(), location.height()));
 //                                mappedRecognitions.add(result);
                             }
                         }
