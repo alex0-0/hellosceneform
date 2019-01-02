@@ -6,7 +6,7 @@ android {
 
 
     defaultConfig {
-        minSdkVersion 18
+        minSdkVersion 24
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
@@ -22,6 +22,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    compileOptions {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
 
 }
 
@@ -33,19 +37,20 @@ dependencies {
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
     api project(':tensorflow')
     api project(':openCVLibrary331dev')
+    implementation 'org.apache.commons:commons-math3:3.6.1'
 }
-
-task makejar(type: Copy) {
-    delete "build/libs/imageprocessinglib.jar"
-    from('build/intermediates/bundles/release/')
-    into('../OutputLibs/')
-    include('classes.jar')
-    rename('classes.jar', "imageprocessinglib.jar")
-}
-
-makejar.dependsOn(build)
-
-task copyLibs(type: Copy) {
-    from configurations.api
-    into 'libs'
-}
+//
+//task makejar(type: Copy) {
+//    delete "build/libs/imageprocessinglib.jar"
+//    from('build/intermediates/bundles/release/')
+//    into('../OutputLibs/')
+//    include('classes.jar')
+//    rename('classes.jar', "imageprocessinglib.jar")
+//}
+//
+//makejar.dependsOn(build)
+//
+//task copyLibs(type: Copy) {
+//    from configurations.api
+//    into 'libs'
+//}

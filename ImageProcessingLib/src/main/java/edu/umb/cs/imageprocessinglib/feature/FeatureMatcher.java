@@ -1,5 +1,8 @@
 package edu.umb.cs.imageprocessinglib.feature;
 
+import edu.umb.cs.imageprocessinglib.ImageProcessor;
+import edu.umb.cs.imageprocessinglib.model.DescriptorType;
+import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.opencv.calib3d.Calib3d;
 import org.opencv.core.DMatch;
 import org.opencv.core.KeyPoint;
@@ -23,10 +26,7 @@ import java.util.List;
  */
 
 public class FeatureMatcher {
-    public enum DescriptorType {
-        ORB,
-        SURF
-    }
+
     //    static private final double kConfidence = 0.99;
 //    static private final double kDistance = 3.0;
     static private final double kRatio = 0.7;
@@ -52,7 +52,7 @@ public class FeatureMatcher {
         BFMatcher m;
         switch (type) {
             case SURF:
-                m = BFMatcher.create(DescriptorMatcher.BRUTEFORCE_SL2, false);
+                m = BFMatcher.create(DescriptorMatcher.BRUTEFORCE, false);
                 break;
             case ORB:
             default:
@@ -136,6 +136,182 @@ public class FeatureMatcher {
         }
         return symMatches;
     }
+
+    public MatOfDMatch matchWithRegression(Mat queryDescriptor,
+                                           Mat templateDescriptor,
+                                           MatOfKeyPoint queryKeyPoints,
+                                           MatOfKeyPoint templateKeyPoints,
+                                           DescriptorType dType,
+                                           int knnNum,
+                                           float matchDisThd,
+                                           int posThd) {
+//        MatOfDMatch matches = new MatOfDMatch();
+//        matcher.match(queryDescriptor, templateDescriptor, matches);       //k(final parameter) set to 1 will do crosscheck
+//        return matches;
+        DescriptorMatcher m = matcher;
+
+        if (dType != descriptorType) {
+            m = createMatcher(dType);
+        }
+
+        ArrayList<MatOfDMatch> matches1 = new ArrayList<>();
+        ArrayList<MatOfDMatch>  matches2 = new ArrayList<>();
+
+        //use templateDescriptor as query to make sure the match won't exceed the number of template key points
+        m.knnMatch(templateDescriptor, queryDescriptor, matches1, knnNum);
+        m.knnMatch(queryDescriptor, templateDescriptor, matches2, 2);      //matches will is used later
+
+        ratioTest(matches1);
+        ratioTest(matches2);
+
+        MatOfDMatch symMatches = symmetryTest(matches1, matches2);
+        MatOfDMatch ransacMatches = new MatOfDMatch();
+
+        if (symMatches.total() > 20) {
+            ransacTest(symMatches, templateKeyPoints, queryKeyPoints, ransacMatches);
+            symMatches = ransacMatches;
+        }
+
+        SimpleRegression rx = new SimpleRegression();
+        SimpleRegression ry = new SimpleRegression();
+
+        KeyPoint[] templateKPs = templateKeyPoints.toArray();
+        KeyPoint[] queryKPs = queryKeyPoints.toArray();
+
+        DMatch[] dMatches = symMatches.toArray();
+        for(int i=0;i<dMatches.length;i++){
+            DMatch tmpd=dMatches[i];
+            KeyPoint kp2 = templateKPs[tmpd.queryIdx];
+            KeyPoint kp1 = queryKPs[tmpd.trainIdx];
+
+//            System.out.printf("x:%.02f, y:%.02f \t x:%.02f, y:%.02f \t dist:%.02f\n",kp1.pt.x, kp1.pt.y, kp2.pt.x, kp2.pt.y, tmpd.distance);
+            rx.addData(kp1.pt.x, kp2.pt.x);
+            ry.addData(kp1.pt.y, kp2.pt.y);
+        }
+
+        ArrayList<DMatch> retList = new ArrayList<>();
+        for (int i = 0; i < matches1.size(); i++) {
+            DMatch[] ms = matches1.get(i).toArray();
+
+            int index = -1;
+            double min = posThd;
+            for(int j=0;j<ms.length;j++){
+                if(ms[j].distance > matchDisThd) continue;
+                KeyPoint qkp = queryKPs[ms[j].trainIdx];
+                KeyPoint tkp = templateKPs[ms[j].queryIdx];
+                double ex = qkp.pt.x*rx.getSlope() + rx.getIntercept();
+                double ey = qkp.pt.y*ry.getSlope() + ry.getIntercept();
+
+//                System.out.printf("Q:%d, T:%d, dist:%.02f\n",ms[j].queryIdx,ms[j].trainIdx,ms[j].distance);
+//                System.out.printf("qx:%.02f, qy:%.02f\t tx:%.02f, ty:%.02f\t ex:%.02f, ey:%.02f\n",
+//                        qkp.pt.x,qkp.pt.y,tkp.pt.x, tkp.pt.y, ex,ey);
+                double diffx = Math.abs(ex-tkp.pt.x);
+                double diffy = Math.abs(ey-tkp.pt.y);
+                if( diffx < min && diffy < min){
+                    min = Math.max(diffx, diffy);
+                    index = j;
+                }
+            }
+            if (index != -1)
+                retList.add(new DMatch(ms[index].trainIdx, ms[index].queryIdx, ms[index].distance));
+        }
+
+        for (int i = 0; i < matches1.size(); i++) {
+            matches1.get(i).release();
+        }
+
+        for (int i = 0; i < matches2.size(); i++) {
+            matches2.get(i).release();
+        }
+
+        MatOfDMatch ret=new MatOfDMatch();
+        ret.fromList(retList);
+        return ret;
+    }
+
+
+    public MatOfDMatch myMatchFeature(Mat queryDescriptor,
+                                      Mat templateDescriptor,
+                                      MatOfKeyPoint queryKeyPoints,
+                                      MatOfKeyPoint templateKeyPoints,
+                                      DescriptorType dType,
+                                      SimpleRegression rx,
+                                      SimpleRegression ry) {
+//        MatOfDMatch matches = new MatOfDMatch();
+//        matcher.match(queryDescriptor, templateDescriptor, matches);       //k(final parameter) set to 1 will do crosscheck
+//        return matches;
+        DescriptorMatcher m = matcher;
+
+        if (dType != descriptorType) {
+            m = createMatcher(dType);
+        }
+
+        ArrayList<MatOfDMatch> matches1 = new ArrayList<>();
+        ArrayList<MatOfDMatch>  matches2 = new ArrayList<>();
+
+        m.knnMatch(queryDescriptor, templateDescriptor, matches1, 5);       //k(final parameter) set to 1 will do crosscheck
+        m.knnMatch(templateDescriptor, queryDescriptor, matches2, 5);
+
+        ArrayList<DMatch> retList=new ArrayList<DMatch>();
+        double th_distance=500, th_pos=20;
+        for (int i = 0; i < matches1.size(); i++) {
+            MatOfDMatch matchIterator = matches1.get(i);
+            DMatch[] dMatches=matchIterator.toArray();
+            for(int j=0;j<dMatches.length;j++){
+                if(dMatches[j].distance>th_distance) continue;
+                KeyPoint qkp= ImageProcessor.findKeyPoint(queryKeyPoints, dMatches[j].queryIdx);
+                KeyPoint tkp= ImageProcessor.findKeyPoint(templateKeyPoints, dMatches[j].trainIdx);
+                double ex=qkp.pt.x*rx.getSlope()+rx.getIntercept();
+                double ey=qkp.pt.y*ry.getSlope()+ry.getIntercept();
+
+                System.out.printf("Q:%d, T:%d, dist:%.02f\n",dMatches[j].queryIdx,dMatches[j].trainIdx,dMatches[j].distance);
+                System.out.printf("qx:%.02f, qy:%.02f\t tx:%.02f, ty:%.02f\t ex:%.02f, ey:%.02f\n",
+                        qkp.pt.x,qkp.pt.y,tkp.pt.x, tkp.pt.y, ex,ey);
+
+                if((Math.abs(ex-tkp.pt.x)<th_pos)&&Math.abs(ey-tkp.pt.y)<th_pos){
+                    retList.add(dMatches[j]);
+                    System.out.println("added");
+                    break;
+                }
+            }
+        }
+
+
+        for (int i = 0; i < matches1.size(); i++) {
+            matches1.get(i).release();
+        }
+
+        for (int i = 0; i < matches2.size(); i++) {
+            matches2.get(i).release();
+        }
+
+        MatOfDMatch ret=new MatOfDMatch();
+        ret.fromList(retList);
+        return ret;
+        /*
+        ratioTest(matches1);
+        ratioTest(matches2);
+
+        MatOfDMatch symMatches = symmetryTest(matches1, matches2);
+        MatOfDMatch ransacMatches = new MatOfDMatch();
+
+        //release resources
+        for (int i = 0; i < matches1.size(); i++) {
+            matches1.get(i).release();
+        }
+        for (int i = 0; i < matches2.size(); i++) {
+            matches2.get(i).release();
+        }
+
+        if (symMatches.total() > 20) {
+            ransacTest(symMatches, queryKeyPoints, templateKeyPoints, ransacMatches);
+            //release resources
+            symMatches.release();
+            return ransacMatches;
+        }
+        return symMatches;*/
+    }
+
 
     //if the two best matches are relatively close in distance,
 //then there exists a possibility that we make an error if we select one or the other.

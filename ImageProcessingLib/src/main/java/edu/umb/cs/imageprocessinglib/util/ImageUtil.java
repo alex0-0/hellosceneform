@@ -20,12 +20,15 @@ import android.graphics.Matrix;
 import android.os.Environment;
 
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.utils.Converters;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.List;
 
 /**
  * Utility class for manipulating images.
@@ -373,8 +376,8 @@ public class ImageUtil {
   public static Mat scaleImage(Mat image, float scale) {
     Mat scaledImage = new Mat();
     Size size = image.size();
-    double rows = size.height;
-    double cols = size.width;
+    double rows = size.width;
+    double cols = size.height;
     Size newSize = new Size(rows * scale, cols * scale);
     Imgproc.resize(image, scaledImage, newSize);
     return scaledImage;
@@ -391,5 +394,57 @@ public class ImageUtil {
     Mat newImage = new Mat();
     image.convertTo(newImage, -1, alpha, beta);
     return newImage;
+  }
+
+  /**
+   * Affine original image to generate a group of distorted image
+   * refer to https://stackoverflow.com/questions/10962228/whats-the-best-way-of-understanding-opencvs-warpperspective-and-warpaffine?rq=1 for more information
+   * @param image     original image
+   * @param originalPoints     original points position, at least 4 points, containing left-top, right-top, right-bottom, left-bottom point
+   * @param targetPoints       target points position, at least 4 points, containing left-top, right-top, right-bottom, left-bottom point
+   * @return          a image of changed perspective.
+   */
+  public static Mat changeImagePerspective(Mat image, List<Point> originalPoints, List<Point> targetPoints) {
+    Mat r = new Mat();
+    Mat cornersMat = Converters.vector_Point2f_to_Mat(originalPoints);
+    Mat targetMat = Converters.vector_Point2f_to_Mat(targetPoints);
+    Mat trans = Imgproc.getPerspectiveTransform(cornersMat, targetMat);
+
+    Imgproc.warpPerspective(image, r, trans, new Size(image.cols(), image.rows()));
+    //clean resource
+    cornersMat.release();
+    targetMat.release();
+    trans.release();
+
+    return r;
+  }
+
+  /**
+   * Affine original image to generate a group of distorted image
+   * @param image     original image
+   * @param originalPoints     original points position, at least 4 points
+   * @param targetPoints       target points position, at least 4 points
+   * @return          an affined image
+   */
+  public static Mat affineImage(Mat image, List<Point> originalPoints, List<Point> targetPoints) {
+    MatOfPoint2f originalMat = new MatOfPoint2f();
+    originalMat.fromList(originalPoints);
+
+    MatOfPoint2f targetMat = new MatOfPoint2f();
+    targetMat.fromList(targetPoints);
+
+    //calculate the affine transformation matrix,
+    //refer to https://stackoverflow.com/questions/22954239/given-three-points-compute-affine-transformation
+    Mat affineTransform = Imgproc.getAffineTransform(originalMat, targetMat);
+
+    Mat affine = new Mat();
+    Imgproc.warpAffine(image, affine, affineTransform, new Size(image.cols(), image.rows()));
+
+    //release resources
+    affineTransform.release();
+    targetMat.release();
+    originalMat.release();
+
+    return affine;
   }
 }

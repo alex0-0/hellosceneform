@@ -1,10 +1,12 @@
 package com.google.ar.sceneform.samples.hellosceneform;
 
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.media.Image;
 import android.util.Log;
 
+import org.opencv.android.Utils;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
@@ -165,5 +167,30 @@ public class MyUtils {
 
         }
         return data;
+    }
+
+    static Bitmap imageToBitmap(Image image){
+        String str=String.format("Image, width:%d,height:%d",image.getWidth(),image.getHeight());
+        Log.d("myTag",str);
+//        if(!opencvLoaded) return null;
+        Mat mat=  MyUtils.imageToMat(image);
+        str=String.format("Mat, width:%d,height:%d",mat.cols(),mat.rows());
+        Log.d("myTag",str);
+        Bitmap bitmap=Bitmap.createBitmap(mat.cols(),  mat.rows(), Bitmap.Config.ARGB_8888);
+
+
+        Utils.matToBitmap(mat,bitmap);
+        str=String.format("Bitmap, width:%d,height:%d",bitmap.getWidth(),bitmap.getHeight());
+        Log.d("myTag",str);
+
+//        Matrix matrix = new Matrix();
+//        matrix.postRotate(90);
+//        Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap , 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+
+//        str=String.format("RotatedBitmap, width:%d,height:%d",rotatedBitmap.getWidth(),rotatedBitmap.getHeight());
+//        Log.d("myTag",str);
+
+        //return rotatedBitmap;
+        return bitmap;
     }
 }

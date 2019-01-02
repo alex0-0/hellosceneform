@@ -16,4 +16,7 @@
 -->
 <resources>
     <string name="app_name">Hello Sceneform</string>
+    <string name="record">Record</string>
+    <string name="retrieve">Retrieve</string>
+    <string name="angle">angle</string>
 </resources>

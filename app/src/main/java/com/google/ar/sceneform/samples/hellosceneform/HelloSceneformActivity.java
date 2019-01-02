@@ -19,17 +19,13 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.Point;
-import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Typeface;
-import android.graphics.YuvImage;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.Image;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -38,42 +34,31 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
-import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.PixelCopy;
 import android.view.Surface;
 import android.view.View;
-import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Camera;
-import com.google.ar.core.Config;
-import com.google.ar.core.Frame;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
-import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.sceneform.AnchorNode;
-import com.google.ar.sceneform.ArSceneView;
-import com.google.ar.sceneform.HitTestResult;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
-import com.google.ar.sceneform.rendering.PlaneRenderer;
-import com.google.ar.sceneform.rendering.Renderer;
 import com.google.ar.sceneform.samples.hellosceneform.env.BorderedText;
 import com.google.ar.sceneform.samples.hellosceneform.env.ImageUtils;
 import com.google.ar.sceneform.samples.hellosceneform.env.Logger;
 import com.google.ar.sceneform.samples.hellosceneform.tracking.MultiBoxTracker;
-import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.TransformableNode;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -81,21 +66,23 @@ import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
+import org.opencv.face.FacemarkLBF;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.List;
 
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.ObjectDetector;
+import edu.umb.cs.imageprocessinglib.feature.FeatureStorage;
 import edu.umb.cs.imageprocessinglib.model.BoxPosition;
+import edu.umb.cs.imageprocessinglib.model.ImageFeature;
 import edu.umb.cs.imageprocessinglib.model.Recognition;
+import edu.umb.cs.imageprocessinglib.util.StorageUtil;
 
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
  */
-public class HelloSceneformActivity extends AppCompatActivity {
+public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener {
     private  static final String TAG = "RECTANGLE_DEBUG";
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
     private static final double MIN_OPENGL_VERSION = 3.1;
@@ -117,6 +104,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
     private Bitmap cropCopyBitmap = null;
     private Bitmap croppedBitmap = null;
     private Bitmap rgbFrameBitmap=null;
+    private Bitmap copyBitmp = null;
 
     private HandlerThread handlerThread;
     private byte[][] yuvBytes = new byte[3][];
@@ -127,53 +115,6 @@ public class HelloSceneformActivity extends AppCompatActivity {
     protected int previewHeight = 0;
     private ImageView imgView;
 
-    private static final Logger LOGGER = new Logger();
-
-    // Configuration values for the prepackaged multibox model.
-    private static final int MB_INPUT_SIZE = 224;
-    private static final int MB_IMAGE_MEAN = 128;
-    private static final float MB_IMAGE_STD = 128;
-    private static final String MB_INPUT_NAME = "ResizeBilinear";
-    private static final String MB_OUTPUT_LOCATIONS_NAME = "output_locations/Reshape";
-    private static final String MB_OUTPUT_SCORES_NAME = "output_scores/Reshape";
-    private static final String MB_MODEL_FILE = "file:///android_asset/multibox_model.pb";
-    private static final String MB_LOCATION_FILE = "file:///android_asset/multibox_location_priors.txt";
-
-    private static final int TF_OD_API_INPUT_SIZE = 300;
-    private static final String TF_OD_API_MODEL_FILE = "file:///android_asset/ssd_mobilenet_v1_android_export.pb";
-    private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/coco_labels_list.txt";
-
-    // Configuration values for tiny-yolo-voc. Note that the graph is not included with TensorFlow and
-    // must be manually placed in the assets/ directory by the user.
-    // Graphs and models downloaded from http://pjreddie.com/darknet/yolo/ may be converted e.g. via
-    // DarkFlow (https://github.com/thtrieu/darkflow). Sample command:
-    // ./flow --model cfg/tiny-yolo-voc.cfg --load bin/tiny-yolo-voc.weights --savepb --verbalise
-    private static final String YOLO_MODEL_FILE = "file:///android_asset/graph-tiny-yolo-voc.pb";
-    private static final int YOLO_INPUT_SIZE = 416;
-    private static final String YOLO_INPUT_NAME = "input";
-    private static final String YOLO_OUTPUT_NAMES = "output";
-    private static final int YOLO_BLOCK_SIZE = 32;
-
-    // Which detection model to use: by default uses Tensorflow Object Detection API frozen
-    // checkpoints.  Optionally use legacy Multibox (trained using an older version of the API)
-    // or YOLO.
-    private enum DetectorMode {
-        TF_OD_API, MULTIBOX, YOLO;
-    }
-    private static final DetectorMode MODE = DetectorMode.TF_OD_API;
-
-    // Minimum detection confidence to track a detection.
-    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
-    private static final float MINIMUM_CONFIDENCE_MULTIBOX = 0.1f;
-    private static final float MINIMUM_CONFIDENCE_YOLO = 0.25f;
-
-    private static final boolean MAINTAIN_ASPECT = MODE == DetectorMode.YOLO;
-
-    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-
-    private static final boolean SAVE_PREVIEW_BITMAP = false;
-    private static final float TEXT_SIZE_DIP = 10;
-
     private Integer sensorOrientation;
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
@@ -183,11 +124,13 @@ public class HelloSceneformActivity extends AppCompatActivity {
     private MultiBoxTracker tracker;
 
     private byte[] luminanceCopy;
+    private List<Recognition> recognitions;
 
 //    private Classifier detector;
     private BorderedText borderedText;
 
-    static Boolean once_token = false;
+    static Boolean onRecord = false;
+    static Boolean onRetrieve = false;
 
 //    private final PlaneRenderer planeRenderer = new PlaneRenderer(new Renderer(new ));
 
@@ -208,6 +151,11 @@ public class HelloSceneformActivity extends AppCompatActivity {
         arFragment.getPlaneDiscoveryController().setInstructionView(null);
         imgView = findViewById(R.id.imgview);
 
+        //orientation sensor manager
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        mRotationVectorSensor = mSensorManager.getDefaultSensor(
+                Sensor.TYPE_ROTATION_VECTOR);
+        setAngle();
 
         Display display = this.getWindowManager().getDefaultDisplay();
         int stageWidth = display.getWidth();
@@ -235,10 +183,10 @@ public class HelloSceneformActivity extends AppCompatActivity {
 
                 //TODO: is the conversion done in correct way?
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
-                bitmap=imageToBitmap(img);
+                bitmap=MyUtils.imageToBitmap(img);
 
                 //added by bo to scale down the image
-                bitmap=Bitmap.createScaledBitmap(bitmap, 360,640,false);
+//                bitmap=Bitmap.createScaledBitmap(bitmap, 360,640,false);
 
 
                 img.close();
@@ -320,6 +268,18 @@ public class HelloSceneformActivity extends AppCompatActivity {
 
         //added by bo
 
+        Button recBtn = findViewById(R.id.record);  //record button
+        Button rteBtn = findViewById(R.id.retrieve);    //retrieve button
+        recBtn.setOnClickListener(new View.OnClickListener(){
+            public void onClick(View view) {
+                onRecord = true;
+            }
+        });
+        rteBtn.setOnClickListener(new View.OnClickListener(){
+            public void onClick(View view) {
+                onRetrieve = true;
+            }
+        });
     }
 
     void initTF(Bitmap bitmap) {
@@ -352,12 +312,13 @@ public class HelloSceneformActivity extends AppCompatActivity {
 //        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
 //
         croppedBitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888);
+        copyBitmp = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
 //
         frameToCropTransform =
                 ImageUtils.getTransformationMatrix(
                         previewWidth, previewHeight,
                         300, 300,
-                        sensorOrientation, MAINTAIN_ASPECT);
+                        sensorOrientation, false);
 //        frameToCropTransform = new Matrix();
 //        frameToCropTransform.postRotate(sensorOrientation);
 //        frameToCropTransform =
@@ -391,7 +352,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
                 });
     }
 
-    void processImage(Bitmap bitmap){
+    void processImage(Bitmap bitmap) {
         if(bitmap==null) return;
 
         //byte[] originalLuminance = getLuminance();
@@ -419,6 +380,12 @@ public class HelloSceneformActivity extends AppCompatActivity {
 //        final Canvas canvas = new Canvas(rgbFrameBitmap);
         canvas.drawBitmap(bitmap, frameToCropTransform, null);
 
+//        Bitmap copy = Bitmap.createBitmap(bitmap);
+//        Bitmap copy = bitmap.copy(bitmap.getConfig(), true);
+        final Canvas c = new Canvas(copyBitmp);
+//        final Canvas canvas = new Canvas(rgbFrameBitmap);
+        c.drawBitmap(bitmap, new Matrix(), null);
+
 //        setImage(croppedBitmap);
         runInBackground(
                 new Runnable() {
@@ -436,35 +403,37 @@ public class HelloSceneformActivity extends AppCompatActivity {
                         for (final Recognition result : results) {
                             BoxPosition pos = result.getLocation();
                             final RectF location = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
-                            if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
-
-                                roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
-                                Log.d(TAG, "main: rect before transform " + location.toString());
-                                cropToFrameTransform.mapRect(location);
-                                Log.d(TAG, "main: rect after transform " + location.toString());
-//                                frameToDisplayTransform.mapRect(location);
-                                //TODO: the width is a bit narrower than supposed to be, figure out later what is going wrong
-//                                float hRatio = height / previewWidth / 2.0f;
-//                                float wRatio = width / previewHeight / 2.0f;
-//                                RectF loc = new RectF(location.left*hRatio, location.top*wRatio, location.right*hRatio, location.bottom*wRatio);
-//                                result.setLocation(loc);
-                                result.setLocation(new BoxPosition(location.left, location.top, location.width(), location.height()));
-//                                mappedRecognitions.add(result);
-                            }
+//                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
+                            Log.d(TAG, "main: rect before transform " + location.toString());
+                            cropToFrameTransform.mapRect(location);
+                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
+                            result.setLocation(new BoxPosition(location.left, location.top, location.width(), location.height()));
                         }
 
                         if (results.size() > 0) {
-                            Mat mat = new Mat();
-                            Utils.bitmapToMat(croppedBitmap, mat);
-                            Mat cropMat = new Mat(mat, roi);
-                            Bitmap tBM = Bitmap.createBitmap(roi.width, roi.height, Bitmap.Config.ARGB_8888);
-                            Utils.matToBitmap(cropMat, tBM);
-                            mat.release();
-                            cropMat.release();
-                            setImage(tBM);
+                            if (onRecord) {
+                                record(copyBitmp, results);
+                            }
+                            else if (onRetrieve) {
+                                retrieve(copyBitmp, results);
+                            }
+//                            Mat mat = new Mat();
+//                            Utils.bitmapToMat(copyBitmp, mat);
+//                            Mat cropMat = new Mat(mat, roi);
+//                            Bitmap tBM = Bitmap.createBitmap(roi.width, roi.height, Bitmap.Config.ARGB_8888);
+//                            Utils.matToBitmap(cropMat, tBM);
+//                            mat.release();
+//                            cropMat.release();
+//                            setImage(tBM);
+//                            copy.recycle();
                         }
-
-//                        RectF rectF = new RectF(9, 79, 283, 216);//previewWidth, previewHeight);
+                        else if (onRecord) {
+                            runOnUiThread(()->{
+                                Toast.makeText(getApplicationContext(), "There is no recognized object in frame", Toast.LENGTH_SHORT).show();
+                            });
+                            onRecord = false;
+                        }
+//                        RectF rectF = new RectF(9, 79, 283, 216);//previewWidth, previewHeight;
 //                        cropToFrameTransform.mapRect(rectF);
 //                        RectF rectF = new RectF(0, 0, previewWidth, previewHeight);
 //                        Classifier.Recognition result = new Classifier.Recognition("1434", "test", 0.99f, rectF);
@@ -480,6 +449,25 @@ public class HelloSceneformActivity extends AppCompatActivity {
                     }
                 });
         bitmap.recycle();
+    }
+
+    private void record(Bitmap img, List<Recognition> recognitions) {
+        Mat mat = new Mat();
+        Utils.bitmapToMat(img, mat);
+        for (Recognition r : recognitions) {
+            BoxPosition location = r.getLocation();
+            Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
+            Mat tMat = new Mat(mat, roi);
+            ImageFeature feature = ImageProcessor.extractRobustFeatures(tMat);
+
+            //TODO:save or sent Recognition file and ImageFeature file
+//            StorageUtil.saveRecognitionToFile(r, "feature_" + feature);
+        }
+
+    }
+
+    private void retrieve(Bitmap img, List<Recognition> recognitions) {
+
     }
 
     //added by bo
@@ -549,31 +537,6 @@ public class HelloSceneformActivity extends AppCompatActivity {
             return false;
         }
         return true;
-    }
-
-    Bitmap imageToBitmap(Image image){
-        String str=String.format("Image, width:%d,height:%d",image.getWidth(),image.getHeight());
-        Log.d("myTag",str);
-        if(!opencvLoaded) return null;
-        Mat mat=  MyUtils.imageToMat(image);
-        str=String.format("Mat, width:%d,height:%d",mat.cols(),mat.rows());
-        Log.d("myTag",str);
-        Bitmap bitmap=Bitmap.createBitmap(mat.cols(),  mat.rows(), Bitmap.Config.ARGB_8888);
-
-
-        Utils.matToBitmap(mat,bitmap);
-        str=String.format("Bitmap, width:%d,height:%d",bitmap.getWidth(),bitmap.getHeight());
-        Log.d("myTag",str);
-
-//        Matrix matrix = new Matrix();
-//        matrix.postRotate(90);
-//        Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap , 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
-//        str=String.format("RotatedBitmap, width:%d,height:%d",rotatedBitmap.getWidth(),rotatedBitmap.getHeight());
-//        Log.d("myTag",str);
-
-        //return rotatedBitmap;
-        return bitmap;
     }
 
     //miniature image view set image
@@ -659,7 +622,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
             handlerThread = null;
             handler = null;
         } catch (final InterruptedException e) {
-            LOGGER.e(e, "Exception!");
+//            LOGGER.e(e, "Exception!");
         }
         arFragment.onPause();
 
@@ -690,6 +653,69 @@ public class HelloSceneformActivity extends AppCompatActivity {
         final OverlayView overlay = (OverlayView) findViewById(R.id.debug_overlay);
         if (overlay != null) {
             overlay.postInvalidate();
+        }
+    }
+
+
+    //Codes below this line is for orientation monitor
+    private RotationData ref=null;
+    private SensorManager mSensorManager;
+    private Sensor mRotationVectorSensor;
+    private boolean checkAngle=false, firstValue=false;
+
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+    }
+    public void onSensorChanged(SensorEvent event) {
+        if (!firstValue) {
+            ref=new RotationData(event.values);
+            firstValue=true;
+        } else {
+            RotationData temp=new RotationData(event.values);
+            displayData(temp);
+        }
+    }
+
+    void displayData(RotationData temp){
+        TextView textView=findViewById(R.id.cangle);
+        textView.setText(ref.toString()+", "+temp.toString());
+    }
+
+    void setAngle(){
+        checkAngle=true;
+        mSensorManager.registerListener(this, mRotationVectorSensor, 10000);
+        firstValue=false;
+    }
+
+    private class RotationData{
+        private float x,y,z,cos;
+        private static final int FROM_RADS_TO_DEGS = -57;
+        RotationData(float[] values){
+//            x=values[0];
+//            y=values[1];
+//            z=values[2];
+//            cos=values[3];
+            float[] rotationMatrix = new float[9];
+            SensorManager.getRotationMatrixFromVector(rotationMatrix, values);
+            int worldAxisX = SensorManager.AXIS_X;
+            int worldAxisZ = SensorManager.AXIS_Z;
+            float[] adjustedRotationMatrix = new float[9];
+            SensorManager.remapCoordinateSystem(rotationMatrix, worldAxisX, worldAxisZ, adjustedRotationMatrix);
+            float[] orientation = new float[3];
+            SensorManager.getOrientation(adjustedRotationMatrix, orientation);
+            float pitch = orientation[1] * FROM_RADS_TO_DEGS;
+            float roll = orientation[2] * FROM_RADS_TO_DEGS;
+            float azimuth = orientation[0] * FROM_RADS_TO_DEGS;
+            x = pitch;
+            y = roll;
+            z = azimuth;
+        }
+
+        public String toString(){
+            //return Float.toString(x)+" "+Float.toString(y)+" "+Float.toString(z);
+
+//            return String.format("%.02f %.02f %.02f",Math.asin(x)/Math.PI*180,Math.asin(y)/Math.PI*180,Math.asin(z)/Math.PI*180);
+            return String.format("%.02f %.02f %.02f", x, y, z);
+            //return Double.toString(Math.asin(x))+" "+Double.toString(Math.asin(y))+" "+Double.toString(Math.asin(z));
         }
     }
 }

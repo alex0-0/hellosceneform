@@ -1,7 +1,7 @@
 package edu.umb.cs.imageprocessinglib.feature;
 
+import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import edu.umb.cs.imageprocessinglib.util.ImageUtil;
-
 import org.opencv.core.DMatch;
 import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
@@ -16,15 +16,16 @@ import org.opencv.imgproc.Imgproc;
 import org.opencv.utils.Converters;
 import org.opencv.xfeatures2d.SURF;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Created by alex on 1/27/18.
  */
+
 public class FeatureDetector {
-    private static final int        kMaxFeatures = 200;
+    private static final int        kMaxFeatures = 500;
 
     private FastFeatureDetector     FAST;
     private SURF surf;
@@ -46,7 +47,7 @@ public class FeatureDetector {
         FAST = FastFeatureDetector.create();
         surf = SURF.create();
         surf.setHessianThreshold(400);
-        orb = ORB.create(500, 1.2f, 8, 15, 0, 2, ORB.HARRIS_SCORE, 31, 20);
+        orb = ORB.create(kMaxFeatures, 1.2f, 8, 15, 0, 2, ORB.HARRIS_SCORE, 31, 20);
     }
 
     public void extractORBFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors) {
@@ -58,68 +59,144 @@ public class FeatureDetector {
         surf.detectAndCompute(img, new Mat(), keyPoints, descriptors);
 
     }
-    public void extractFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors) {
-        extractORBFeatures(img, keyPoints, descriptors);
+
+    public void extractFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors, DescriptorType type) {
+        switch (type) {
+            case SURF:
+                extractSurfFeatures(img, keyPoints, descriptors);
+            case ORB:
+            default:
+                extractORBFeatures(img, keyPoints, descriptors);
+        }
     }
 
-    private static int kDistinctThreshold    =   3;      //threshold deciding whether a feature point is robust to distortion
-
-    public boolean extractDistinctFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors) {
-        ArrayList<Mat> distortedImages = distortImage(img);
-        ArrayList<MatOfKeyPoint> ListOfKeyPoints = new ArrayList<>();
-        ArrayList<Mat> ListOfDescriptors = new ArrayList<>();
-        MatOfKeyPoint kp = new MatOfKeyPoint();
-        Mat des = new Mat();
+    /**
+     * extract feature points of images as well as its distorted images
+     * @return  a list of list of integers, root list has the same size as original image features
+     *          each sub-list, supposing its index is A_index, corresponds to each feature, supposing it's A_feature, in original image
+     *          the integer in A_index sub-list stands for the index of distorted image which can find A_feature.
+     */
+    public ArrayList<ArrayList<Integer>> trackFeatures(
+            Mat img,
+            List<Mat> distortedImages,
+            MatOfKeyPoint oriKPs,
+            Mat oriDes,
+            List<MatOfKeyPoint> distortedKPs,
+            List<Mat> distortedDes,
+            List<MatOfDMatch> distortedMatches,
+            DescriptorType type) {
 
         //calculate original image's key points and descriptors
-        extractFeatures(img, kp, des);
+        extractFeatures(img, oriKPs, oriDes, type);
 
-        //record the number of images to which the key point get matched
-        ArrayList<Integer> counter = new ArrayList<>(Collections.nCopies((int)kp.total(), 0));
+        //record the index of images to which the key point get matched
+        ArrayList<ArrayList<Integer>> tracker = new ArrayList<>();
+        for (int i = 0; i < oriDes.rows(); i++)
+            tracker.add(new ArrayList<Integer>());
 
         //calculate key points and descriptors of distorted images
         for (int i = 0; i < distortedImages.size(); i++) {
             MatOfKeyPoint k = new MatOfKeyPoint();
             Mat d = new Mat();
-            extractFeatures(distortedImages.get(i), k, d);
-            ListOfKeyPoints.add(k);
-            ListOfDescriptors.add(d);
+            extractFeatures(distortedImages.get(i), k, d, type);
+            distortedKPs.add(k);
+            distortedDes.add(d);
         }
 
-        //compare key points of original image to distorted images'
+        //match key points of original image to distorted images'
         for (int i = 0; i < distortedImages.size(); i++) {
-            MatOfDMatch m = FeatureMatcher.getInstance().matchFeature(ListOfDescriptors.get(i), des, ListOfKeyPoints.get(i), kp);
+            MatOfDMatch m = FeatureMatcher.getInstance().matchFeature(distortedDes.get(i), oriDes, distortedKPs.get(i), oriKPs, type);
+//            ArrayList<Integer> c = new ArrayList<>();
 
             //record the times that key point of original image is detected in distorted image
             List<DMatch> matches = m.toList();
             for (int d = 0; d < matches.size(); d++) {
                 int index = matches.get(d).trainIdx;
-                int count = counter.get(index);
-                count++;
-                counter.set(index, count);
+                tracker.get(index).add(i);
             }
+            distortedMatches.add(m);
         }
+        return tracker;
+    }
 
-        ArrayList<KeyPoint> rKeyPoints = new ArrayList<>();     //store key points that will be return
+    /**
+     * @param img
+     * @param keyPoints
+     * @param descriptors
+     * @param type              the descriptor type
+     * @param filterThreshold   remove feature points which has count lower than threshold
+     * @param num               the number limit for returning key points
+     * @return boolean indicates whether the method is done without problem
+     */
+    public boolean sortedRobustFeatures(Mat img, List<Mat> distortedImages, MatOfKeyPoint keyPoints, Mat descriptors, DescriptorType type, int filterThreshold, int num) {
+        ArrayList<MatOfKeyPoint> listOfKeyPoints = new ArrayList<>();
+        ArrayList<Mat> listOfDescriptors = new ArrayList<>();
+        MatOfKeyPoint kp = new MatOfKeyPoint();
+        Mat des = new Mat();
+        ArrayList<MatOfDMatch> listOfMatches = new ArrayList<>();
+
+        List<ArrayList<Integer>> tracker = trackFeatures(img, distortedImages, kp, des, listOfKeyPoints, listOfDescriptors, listOfMatches, type);
+
+        List<KeyPoint> rKeyPoints = new ArrayList<>();     //store key points that will be return
         List<KeyPoint> tKeyPoints = kp.toList();
-        for (int i = 0; i < kp.total(); i++) {
-            if (counter.get(i) > kDistinctThreshold) {
+
+        //create a list containing keypoints list and counter list
+        List<List<Object>> merged =
+                IntStream.range(0, tracker.size())
+                        .mapToObj(i -> Arrays.asList((Object) tKeyPoints.get(i), tracker.get(i).size()))
+                        .collect(Collectors.toList());
+
+        //descending order sort by counter
+        merged.sort(new Comparator<List<Object>>() {
+            @Override
+            public int compare(List<Object> o1, List<Object> o2) {
+                if ((Integer) o1.get(1) > (Integer)o2.get(1))
+                    return -1;
+                else if ((Integer) o1.get(1) < (Integer)o2.get(1))
+                    return 1;
+                else return 0;
+            }
+        });
+
+        //remove feature points which appeared less than filterThreshold
+        for (int i = 0; i < merged.size(); i++) {
+            if ((Integer)merged.get(i).get(1) > filterThreshold) {
                 rKeyPoints.add(tKeyPoints.get(i));
             }
         }
+        if (rKeyPoints.size() > num)
+            rKeyPoints = rKeyPoints.subList(0, num);
+
         keyPoints.fromList(rKeyPoints);
-        surf.compute(img, keyPoints, descriptors);
+        if (type == DescriptorType.SURF)
+            surf.compute(img, keyPoints, descriptors);
+        if (type == DescriptorType.ORB)
+            orb.compute(img, keyPoints, descriptors);
 
         //release resources before return
         for (int i = 0; i < distortedImages.size(); i++) {
             distortedImages.get(i).release();
-            ListOfDescriptors.get(i).release();
-            ListOfKeyPoints.get(i).release();
+            listOfDescriptors.get(i).release();
+            listOfKeyPoints.get(i).release();
         }
         kp.release();
         des.release();
 
         return true;
+    }
+
+    private static int kRobustThreshold =   3;      //threshold deciding whether a feature point is robust to distortion
+
+    public boolean extractRobustFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors, DescriptorType type, int num) {
+        return sortedRobustFeatures(img, distortImage(img), keyPoints, descriptors, type, kRobustThreshold, num);
+    }
+
+    public boolean extractRobustFeatures(Mat img, MatOfKeyPoint keyPoints, Mat descriptors, DescriptorType type) {
+        return sortedRobustFeatures(img, distortImage(img), keyPoints, descriptors, type, kRobustThreshold, kMaxFeatures);
+    }
+
+    public boolean extractRobustFeatures(Mat img, List<Mat> distortedImg, MatOfKeyPoint keyPoints, Mat descriptors, DescriptorType type, int num) {
+        return sortedRobustFeatures(img, distortedImg, keyPoints, descriptors, type, kRobustThreshold, num);
     }
 
     /**
@@ -193,7 +270,7 @@ public class FeatureDetector {
         target.add(new Point(0, image.rows()));
 
         for (int i = 0; i < kNumOfPerspectives/2; i++) {
-            List<Point> corners = new ArrayList<Point>();
+            List<Point> corners = new ArrayList<>();
 //            corners.add(new Point(image.cols()/5, image.rows()/5));
 //            corners.add(new Point(image.cols(), image.rows()/5));
 //            corners.add(new Point(image.cols()*3/4, image.rows()*3/4));
@@ -204,23 +281,26 @@ public class FeatureDetector {
             corners.add(new Point(image.cols() * (1 - kStepPerspective * i), image.rows() * (1 - kStepPerspective * i)));
             corners.add(new Point(image.cols() * i * kStepPerspective, image.rows() * (1 - kStepPerspective * i)));
 
-            Mat cornersMat = Converters.vector_Point2f_to_Mat(corners);
-            Mat targetMat = Converters.vector_Point2f_to_Mat(target);
-            Mat trans = Imgproc.getPerspectiveTransform(cornersMat, targetMat);
+            r.add(ImageUtil.changeImagePerspective(image, corners, target));
+            r.add(ImageUtil.changeImagePerspective(image, target, corners));
 
-            Mat proj = new Mat();
-            Imgproc.warpPerspective(image, proj, trans, new Size(image.cols(), image.rows()));
-
-            Mat revertProj = new Mat();
-            trans.release();
-            trans = Imgproc.getPerspectiveTransform(targetMat, cornersMat);
-            Imgproc.warpPerspective(image, revertProj, trans, new Size(image.cols(), image.rows()));
-
-            r.add(proj);
-            r.add(revertProj);
-
-            //release resources
-            trans.release();
+//            Mat cornersMat = Converters.vector_Point2f_to_Mat(corners);
+//            Mat targetMat = Converters.vector_Point2f_to_Mat(target);
+//            Mat trans = Imgproc.getPerspectiveTransform(cornersMat, targetMat);
+//
+//            Mat proj = new Mat();
+//            Imgproc.warpPerspective(image, proj, trans, new Size(image.cols(), image.rows()));
+//
+//            Mat revertProj = new Mat();
+//            trans.release();
+//            trans = Imgproc.getPerspectiveTransform(targetMat, cornersMat);
+//            Imgproc.warpPerspective(image, revertProj, trans, new Size(image.cols(), image.rows()));
+//
+//            r.add(proj);
+//            r.add(revertProj);
+//
+//            //release resources
+//            trans.release();
         }
 
         return r;
@@ -255,27 +335,30 @@ public class FeatureDetector {
             MatOfPoint2f targetMatA = new MatOfPoint2f();
             targetMatA.fromList(targetA);
 
+            r.add(ImageUtil.affineImage(image, original, targetA));
+            r.add(ImageUtil.affineImage(image, targetA, original));
+
             //calculate the affine transformation matrix,
             //refer to https://stackoverflow.com/questions/22954239/given-three-points-compute-affine-transformation
-            Mat affineTransformA = Imgproc.getAffineTransform(originalMat, targetMatA);
-            Mat affineTransformB = Imgproc.getAffineTransform(targetMatA, originalMat);
-
-            Mat affineA = new Mat();
-            Mat affineB = new Mat();
-            Imgproc.warpAffine(image, affineA, affineTransformA, new Size(image.cols(), image.rows()));
-            Imgproc.warpAffine(image, affineB, affineTransformB, new Size(image.cols(), image.rows()));
-            r.add(affineA);
-            r.add(affineB);
-
-            //release resources
-            affineTransformA.release();
-            affineTransformB.release();
+//            Mat affineTransformA = Imgproc.getAffineTransform(originalMat, targetMatA);
+//            Mat affineTransformB = Imgproc.getAffineTransform(targetMatA, originalMat);
+//
+//            Mat affineA = new Mat();
+//            Mat affineB = new Mat();
+//            Imgproc.warpAffine(image, affineA, affineTransformA, new Size(image.cols(), image.rows()));
+//            Imgproc.warpAffine(image, affineB, affineTransformB, new Size(image.cols(), image.rows()));
+//            r.add(affineA);
+//            r.add(affineB);
+//
+//            //release resources
+//            affineTransformA.release();
+//            affineTransformB.release();
         }
 
         originalMat.release();
 
         return r;
     }
+
+
 }
-
-
