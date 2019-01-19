@@ -83,7 +83,6 @@ import edu.umb.cs.imageprocessinglib.model.BoxPosition;
 import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import edu.umb.cs.imageprocessinglib.model.ImageFeature;
 import edu.umb.cs.imageprocessinglib.model.Recognition;
-import edu.umb.cs.imageprocessinglib.util.ImageUtil;
 
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
@@ -564,7 +563,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     ImageFeature qIF = ImageProcessor.extractORBFeatures(qMat, 500);
                     List<List<ImageFeature>> tIFs = rs.get(r.getTitle());
                     for (List<ImageFeature> ts : tIFs) {
-                        ImageFeature tIF = consistTemplateFP(ts, hd, vd, kTemplateFPNum);
+                        ImageFeature tIF = constructTemplateFP(ts, hd, vd, kTemplateFPNum);
                         MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
                         sb.append(r.getTitle() + " " + (float) matches.total() / tIF.getSize() + ",");
                     }
@@ -577,7 +576,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         });
     }
 
-    ImageFeature consistTemplateFP(List<ImageFeature> tIFs, float hd, float vd, int tNum) {
+    ImageFeature constructTemplateFP(List<ImageFeature> tIFs, float hd, float vd, int tNum) {
         //tIFs is sorted as left, right, top and bottom
         //calculate ratios
         float hr = Math.abs(hd)/(Math.abs(hd) + Math.abs(vd));
