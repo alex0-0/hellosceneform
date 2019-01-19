@@ -50,6 +50,10 @@ public final class Recognition implements Serializable {
         return id;
     }
 
+    public String getUuid() {
+        return uuid;
+    }
+
     public String getTitle() {
         return title;
     }

@@ -7,12 +7,13 @@ import edu.umb.cs.imageprocessinglib.feature.FeatureMatcher;
 import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import edu.umb.cs.imageprocessinglib.model.ImageFeature;
 import edu.umb.cs.imageprocessinglib.util.ImageUtil;
-
 import org.opencv.android.Utils;
 import org.opencv.core.*;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ImageProcessor {
 
@@ -140,17 +141,20 @@ public class ImageProcessor {
         Mat des = new Mat();
 //        FeatureDetector featureDetector = new FeatureDetector(num);
 //        featureDetector.extractRobustFeatures(img, kps, des, type, num);
-        FeatureDetector.getInstance().extractRobustFeatures(img, kps, des, type, num);
+        FeatureDetector.getInstance().extractRobustFeatures(img, FeatureDetector.getInstance().distortImage(img), kps, des, type, num, 300, null);
         return new ImageFeature(kps, des, type);
     }
 
-    /*
-    Extract image feature points
-     */
-    static public ImageFeature extractRobustFeatures(Mat img, List<Mat> distortedImg, int num, DescriptorType type) {
+    static public ImageFeature extractRobustFeatures(Mat img, List<Mat> distortedImg, int num, int disThd, DescriptorType type) {
+        return extractRobustFeatures(img, distortedImg, num, disThd, type, null);
+    }
+
+    //Extract robust image feature points with customized setting
+    static public ImageFeature extractRobustFeatures(Mat img, List<Mat> distortedImg, int num, int disThd, DescriptorType type, List<Integer> minTracker) {
         MatOfKeyPoint kps = new MatOfKeyPoint();
         Mat des = new Mat();
-        FeatureDetector.getInstance().extractRobustFeatures(img, distortedImg, kps, des, type, num);
+//        FeatureDetector fd = new FeatureDetector(num);
+        FeatureDetector.getInstance().extractRobustFeatures(img, distortedImg, kps, des, type, num, disThd, minTracker);
         return new ImageFeature(kps, des, type);
     }
 
@@ -158,10 +162,7 @@ public class ImageProcessor {
     Extract image feature points
      */
     static public ImageFeature extractRobustFeatures(Mat img) {
-        MatOfKeyPoint kps = new MatOfKeyPoint();
-        Mat des = new Mat();
-        FeatureDetector.getInstance().extractRobustFeatures(img, kps, des, DescriptorType.ORB);
-        return new ImageFeature(kps, des);
+        return extractRobustFeatures(img, 500, DescriptorType.ORB);
     }
 
     /*
@@ -251,26 +252,49 @@ public class ImageProcessor {
     }
 
     static public MatOfDMatch matchWithRegression(ImageFeature qIF, ImageFeature tIF) {
-        return matchWithRegression(qIF, tIF, 5, 500, 20);
+        return matchWithRegression(qIF, tIF, 5, 300, 20);
     }
 
-    static public ImageFeature extractFeatures(Bitmap bitmap) {
-        Mat img = new Mat();
-        Utils.bitmapToMat(bitmap, img);
-        return extractFeatures(img);
-    }
+    static MatOfDMatch matchWithDistanceThreshold(ImageFeature qIF, ImageFeature tIF, int disThd) {
+        MatOfDMatch m = ImageProcessor.BFMatchImages(qIF, tIF);
+//                MatOfDMatch m = ImageProcessor.BFMatchImages(qIF, tIF);
+//                MatOfDMatch m = ImageProcessor.matchImages(qIF, tIF);
+//                MatOfDMatch m = ImageProcessor.matchWithRegression(qIF, tIF);
+        List<DMatch> mL = new ArrayList<>();
+//                List<DMatch> mL = m.toList();
+        Map<Integer, List<DMatch>> recorder = new HashMap<>();
 
-    /*
-    Match two images
-     */
-    static public MatOfDMatch matcheImages(ImageFeature qIF, ImageFeature tIF) {
-        return FeatureMatcher.getInstance().matchFeature(qIF.getDescriptors(), tIF.getDescriptors(), qIF.getObjectKeypoints(), tIF.getObjectKeypoints());
-    }
+        for (DMatch match : m.toList()) {
+            //filter out those unqualified matches
+            if (match.distance < disThd) {
+                if (recorder.get(match.trainIdx) == null) {
+                    recorder.put(match.trainIdx, new ArrayList<>());
+                }
+                recorder.get(match.trainIdx).add(match);
+//                        mL.add(match);
+            }
+        }
+        //if multiple query points are matched to the same template point, keep the match with minimum distance
+        for (Integer i : recorder.keySet()) {
+            DMatch minDisMatch = null;
+            float minDis = Float.MAX_VALUE;
+            for (DMatch dMatch : recorder.get(i)) {
+                if (dMatch.distance < minDis) {
+                    minDisMatch = dMatch;
+                    minDis = dMatch.distance;
+                }
+            }
+            if (minDisMatch != null)
+                mL.add(minDisMatch);
+        }
 
-    static public MatOfDMatch matcheImages(Bitmap queryImg, Bitmap temImg) {
-        ImageFeature qIF = extractFeatures(queryImg);
-        ImageFeature tIF = extractFeatures(temImg);
-        return matcheImages(qIF, tIF);
+//        //display matches
+//        mL.sort((o1, o2) -> {
+//            return (int) (o1.trainIdx - o2.trainIdx);
+//        });
+        MatOfDMatch ret = new MatOfDMatch();
+        ret.fromList(mL);
+        return ret;
     }
 }
 

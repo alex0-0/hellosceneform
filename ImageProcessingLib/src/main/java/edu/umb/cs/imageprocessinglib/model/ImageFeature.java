@@ -34,4 +34,9 @@ public class ImageFeature {
 
     public int getSize(){return objectKeypoints.rows();}
 
+    public ImageFeature subImageFeature(int start, int end) {
+        MatOfKeyPoint nKP = new MatOfKeyPoint(objectKeypoints.submat(start, end, 0, objectKeypoints.cols()));
+        Mat nDes = descriptors.submat(start, end, 0, descriptors.cols());
+        return new ImageFeature(nKP, nDes, descriptorType);
+    }
 }

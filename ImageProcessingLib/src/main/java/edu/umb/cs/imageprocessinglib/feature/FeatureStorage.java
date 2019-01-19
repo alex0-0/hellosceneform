@@ -1,4 +1,6 @@
 package edu.umb.cs.imageprocessinglib.feature;
+import android.content.Context;
+
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.model.ImageFeature;
 import org.opencv.core.*;
@@ -23,6 +25,7 @@ public class FeatureStorage {
     static final String MAT_TYPE_ID = "opencv-matrix";
     static final String KEYPOINTS_TYPE_ID = "opencv-keypoints";
     static final String KP_TAG = "kp";  //Tag for every KeyPoint in MatOfKeyPoint
+//    Context context;
 
     public enum FeatureStorageFlag {
         READ, WRITE;
@@ -35,10 +38,12 @@ public class FeatureStorage {
     private Element rootElement;
 
     public FeatureStorage() {
+//    public FeatureStorage(Context context) {
         file = null;
         isWrite = false;
         doc = null;
         rootElement = null;
+//        this.context = context;
     }
 
 

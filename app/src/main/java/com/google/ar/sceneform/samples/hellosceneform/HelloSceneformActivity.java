@@ -27,6 +27,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.media.Image;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
@@ -35,7 +36,6 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.util.Size;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -57,7 +57,6 @@ import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.samples.hellosceneform.env.BorderedText;
 import com.google.ar.sceneform.samples.hellosceneform.env.ImageUtils;
-import com.google.ar.sceneform.samples.hellosceneform.env.Logger;
 import com.google.ar.sceneform.samples.hellosceneform.tracking.MultiBoxTracker;
 import com.google.ar.sceneform.ux.TransformableNode;
 
@@ -65,19 +64,26 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
+import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfDMatch;
+import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.Rect;
-import org.opencv.face.FacemarkLBF;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.ObjectDetector;
 import edu.umb.cs.imageprocessinglib.feature.FeatureStorage;
 import edu.umb.cs.imageprocessinglib.model.BoxPosition;
+import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import edu.umb.cs.imageprocessinglib.model.ImageFeature;
 import edu.umb.cs.imageprocessinglib.model.Recognition;
-import edu.umb.cs.imageprocessinglib.util.StorageUtil;
+import edu.umb.cs.imageprocessinglib.util.ImageUtil;
 
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
@@ -86,6 +92,12 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     private  static final String TAG = "RECTANGLE_DEBUG";
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
     private static final double MIN_OPENGL_VERSION = 3.1;
+
+    //fixed file name for storing metadata of image features and recognitions
+    private static final String dataFileName = "data_file";
+    //image recognition object as key, value is a list of image features list recognized as this object by TF.
+    //Each element is a distortion robust image feature, sorted as left, right, top and bottom
+    private Map<String,List<List<ImageFeature>>> rs;
 
     private MyArFragment arFragment;
     private ModelRenderable andyRenderable;
@@ -144,6 +156,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         if (!checkIsSupportedDeviceOrFinish(this)) {
             return;
         }
+        OpenCVLoader.initDebug();
 
         setContentView(R.layout.activity_ux);
         arFragment = (MyArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
@@ -155,7 +168,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         mRotationVectorSensor = mSensorManager.getDefaultSensor(
                 Sensor.TYPE_ROTATION_VECTOR);
-        setAngle();
+        mSensorManager.registerListener(this, mRotationVectorSensor, 10000);
 
         Display display = this.getWindowManager().getDefaultDisplay();
         int stageWidth = display.getWidth();
@@ -277,8 +290,41 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         });
         rteBtn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
-                onRetrieve = true;
+                AsyncTask.execute(()->{
+                    loadData();
+                    onRetrieve = true;
+                });
             }
+        });
+    }
+
+    void loadData() {
+        if (rs==null) {
+            FeatureStorage fs = new FeatureStorage();
+            String data = MyUtils.readFromFile(dataFileName, this);
+            rs = new HashMap<>();
+            String[] recStrs = data.split("\n");
+            String[] os = recStrs[0].split(" ");
+            String dirPath = getFilesDir().getPath();
+            //get orientation data
+            refRD = new RotationData(new Float(os[0]),new Float(os[1]),new Float(os[2]));
+            for (int i=1; i<recStrs.length; i++) {
+                String r = recStrs[i];
+                String[] rec = r.split("\t");
+                if (rs.get(rec[0]) == null)
+                    rs.put(rec[0], new ArrayList<>());
+                //restore image features
+                String fName = dirPath + "/" + rec[2];
+                List<ImageFeature> IFs = new ArrayList<>();
+                IFs.add(fs.loadFPfromFile(fName + "_left"));
+                IFs.add(fs.loadFPfromFile(fName + "_right"));
+                IFs.add(fs.loadFPfromFile(fName + "_top"));
+                IFs.add(fs.loadFPfromFile(fName + "_bottom"));
+                rs.get(rec[0]).add(IFs);
+            }
+        }
+        runOnUiThread(()->{
+            Toast.makeText(getApplicationContext(), "Data loaded", Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -451,30 +497,146 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         bitmap.recycle();
     }
 
+    static int kTemplateFPNum = 100;
+    static int kDisThd = 300;
     private void record(Bitmap img, List<Recognition> recognitions) {
+        setAngle();
+        FeatureStorage fs = new FeatureStorage();
         Mat mat = new Mat();
         Utils.bitmapToMat(img, mat);
+        StringBuilder data = new StringBuilder();
+        data.append(refRD);
+        String dirPath = getFilesDir().getPath();
         for (Recognition r : recognitions) {
             BoxPosition location = r.getLocation();
             Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
             Mat tMat = new Mat(mat, roi);
-            ImageFeature feature = ImageProcessor.extractRobustFeatures(tMat);
 
-            //TODO:save or sent Recognition file and ImageFeature file
-//            StorageUtil.saveRecognitionToFile(r, "feature_" + feature);
+            //TODO:figure out if the orientation of the original image influence the final matching
+            //At present the image is counter-clock rotated 90 degrees
+            List<Mat> leftImgs = ImageProcessor.changeToLeftPerspective(tMat, 5f, 10);
+            for (Mat i : leftImgs) {
+                Bitmap bitmap=Bitmap.createBitmap(i.cols(),  i.rows(), Bitmap.Config.ARGB_8888);
+                Utils.matToBitmap(i,bitmap);
+                int k = 0;
+            }
+
+            data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() + "\n");
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
         }
+        MyUtils.writeToFile(dataFileName, data.toString(), this);
+        runOnUiThread(()->{
+            Toast.makeText(getApplicationContext(), "Image features saved", Toast.LENGTH_SHORT).show();
+        });
+        onRecord = false;
 
     }
 
     private void retrieve(Bitmap img, List<Recognition> recognitions) {
+        Mat mat = new Mat();
+        Utils.bitmapToMat(img, mat);
+        Set<String> recs = rs.keySet();
+        StringBuilder sb = new StringBuilder();
+        //horizontal angle difference, positive stands for right perspective, negative for left perspective
+        float hd = (Math.abs(cRD.z - refRD.z)>180)?(360-(cRD.z-refRD.z)) : (cRD.z-refRD.z);
+        //vertical angle difference, assume the angle can't exceed 90
+        float vd = cRD.x-refRD.x;
+        if (Math.abs(hd) > 90 || Math.abs(vd) > 90)
+            sb.append("angle difference larger than 90 degree");
+        else {
+            for (Recognition r : recognitions) {
+                if (recs.contains(r.getTitle())) {
+                    BoxPosition location = r.getLocation();
+                    Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
+                    Mat qMat = new Mat(mat, roi);
+                    ImageFeature qIF = ImageProcessor.extractORBFeatures(qMat, 500);
+                    List<List<ImageFeature>> tIFs = rs.get(r.getTitle());
+                    for (List<ImageFeature> ts : tIFs) {
+                        ImageFeature tIF = consistTemplateFP(ts, hd, vd, kTemplateFPNum);
+                        MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
+                        sb.append(r.getTitle() + " " + (float) matches.total() / tIF.getSize() + ",");
+                    }
+                }
+            }
+        }
+        runOnUiThread(()->{
+            TextView tv = findViewById(R.id.mratio);
+            tv.setText(sb.toString());
+        });
+    }
 
+    ImageFeature consistTemplateFP(List<ImageFeature> tIFs, float hd, float vd, int tNum) {
+        //tIFs is sorted as left, right, top and bottom
+        //calculate ratios
+        float hr = Math.abs(hd)/(Math.abs(hd) + Math.abs(vd));
+        float vr = Math.abs(vd)/(Math.abs(hd) + Math.abs(vd));
+        ImageFeature IF1;
+        ImageFeature IF2;
+        //guarantee the feature point robust on more-changed orientation is returned at first
+        if (hr >= vr) {
+            int num = (int)(hr * tNum);
+            IF1 = (hd>0)?tIFs.get(1) : tIFs.get(0);
+            if (IF1.getSize() > num)
+                IF1 = IF1.subImageFeature(0, num);
+            IF2 = (vd>0)?tIFs.get(3) : tIFs.get(2);
+        } else {
+            int num = (int)(vr * tNum);
+            IF1 = (vd>0)?tIFs.get(3) : tIFs.get(2);
+            if (IF1.getSize() > num)
+                IF1 = IF1.subImageFeature(0, num);
+            IF2 = (hd>0)?tIFs.get(1) : tIFs.get(0);
+        }
+        if (IF1.getSize() >= tNum) return IF1;
+        //the number of FP from the other ImageFeature
+        int num = tNum - IF1.getSize();
+        List<KeyPoint> kp = new ArrayList<>(IF1.getObjectKeypoints().toList());
+        Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
+        des.push_back(IF1.getDescriptors());
+
+        List<KeyPoint> kp1 = IF1.getObjectKeypoints().toList();
+        List<KeyPoint> kp2 = IF2.getObjectKeypoints().toList();
+        for (int i=0; i < kp2.size(); i++) {
+            KeyPoint k = kp2.get(i);
+            boolean newFP = true;
+            for (KeyPoint k1 : kp1) {
+                if (k1.pt.x != k.pt.x || k1.pt.y != k.pt.y)
+                    continue;
+                else {
+                    newFP = false;
+                    break;
+                }
+            }
+            if (newFP) {
+                kp.add(k);
+                Mat tMat = IF2.getDescriptors().row(i);
+                des.push_back(tMat);
+            }
+            if (kp.size() >= num)
+                break;
+        }
+        MatOfKeyPoint tKP = new MatOfKeyPoint();
+        tKP.fromList(kp);
+        return new ImageFeature(tKP, des, IF1.getDescriptorType());
     }
 
     //added by bo
     public void onPeekTouch (){
         Log.d("myTag","on peek touch");
 
-        if (andyRenderable == null) {
+//        if (andyRenderable == null) {
+        if (true) {
             return;
         }
 
@@ -598,7 +760,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     public void onResume()
     {
         super.onResume();
-        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_3_0, this, mLoaderCallback);
+        OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION, this, mLoaderCallback);
         handlerThread = new HandlerThread("inference");
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
@@ -658,7 +820,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
 
     //Codes below this line is for orientation monitor
-    private RotationData ref=null;
+    private RotationData refRD =null;
+    private RotationData cRD=null;
     private SensorManager mSensorManager;
     private Sensor mRotationVectorSensor;
     private boolean checkAngle=false, firstValue=false;
@@ -666,29 +829,37 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
     }
     public void onSensorChanged(SensorEvent event) {
-        if (!firstValue) {
-            ref=new RotationData(event.values);
-            firstValue=true;
+        if (firstValue) {
+            refRD =new RotationData(event.values);
+            firstValue=false;
         } else {
-            RotationData temp=new RotationData(event.values);
-            displayData(temp);
+            cRD=new RotationData(event.values);
+            displayData(cRD);
         }
     }
 
     void displayData(RotationData temp){
         TextView textView=findViewById(R.id.cangle);
-        textView.setText(ref.toString()+", "+temp.toString());
+        if (refRD != null)
+            textView.setText(refRD.toString()+", "+temp.toString());
     }
 
     void setAngle(){
+        refRD = cRD;    //just in case cRD is re-assigned value
         checkAngle=true;
-        mSensorManager.registerListener(this, mRotationVectorSensor, 10000);
-        firstValue=false;
+        firstValue=true;
     }
 
     private class RotationData{
         private float x,y,z,cos;
         private static final int FROM_RADS_TO_DEGS = -57;
+
+        RotationData(float x, float y, float z){
+            this.x = x;
+            this.y = y; //
+            this.z = z;
+        }
+
         RotationData(float[] values){
 //            x=values[0];
 //            y=values[1];
@@ -705,9 +876,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             float pitch = orientation[1] * FROM_RADS_TO_DEGS;
             float roll = orientation[2] * FROM_RADS_TO_DEGS;
             float azimuth = orientation[0] * FROM_RADS_TO_DEGS;
-            x = pitch;
-            y = roll;
-            z = azimuth;
+            x = pitch;  //top,bottom perspective. -90~90.
+            y = roll;   //rotation on same vertical plane. -180~180
+            z = azimuth;    //left,right perspective. -180~180
         }
 
         public String toString(){

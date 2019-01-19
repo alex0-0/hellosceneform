@@ -79,6 +79,17 @@ android:layout_height="match_parent"
       app:layout_constraintEnd_toEndOf="parent"
       app:layout_constraintStart_toStartOf="parent" />
 
+  <TextView
+      android:id="@+id/mratio"
+      android:layout_width="wrap_content"
+      android:layout_height="15dp"
+      android:layout_marginStart="8dp"
+      android:layout_marginEnd="8dp"
+      android:layout_marginBottom="32dp"
+      android:text="@string/ratio"
+      app:layout_constraintBottom_toTopOf="@+id/cangle"
+      app:layout_constraintEnd_toEndOf="parent"
+      app:layout_constraintStart_toStartOf="parent" />
   <!--
    <LinearLayout
        android:layout_width="match_parent"

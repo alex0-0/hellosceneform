@@ -19,4 +19,5 @@
     <string name="record">Record</string>
     <string name="retrieve">Retrieve</string>
     <string name="angle">angle</string>
+    <string name="ratio">ratio</string>
 </resources>
