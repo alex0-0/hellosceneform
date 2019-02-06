@@ -92,6 +92,15 @@ android:layout_height="match_parent"
         android:text="Viewer" />
   </RadioGroup>
 
+  <SeekBar
+      android:id="@+id/seekBar"
+      android:layout_width="200dp"
+      android:layout_height="wrap_content"
+      android:rotation="270"
+      app:layout_constraintBottom_toBottomOf="parent"
+      app:layout_constraintEnd_toEndOf="parent"
+      app:layout_constraintTop_toTopOf="parent"
+      />
 
 
 
