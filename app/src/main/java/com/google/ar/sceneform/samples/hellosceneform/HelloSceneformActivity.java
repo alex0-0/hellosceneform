@@ -43,6 +43,10 @@ import android.view.Surface;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -53,6 +57,8 @@ import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.sceneform.Node;
+import com.google.ar.sceneform.NodeParent;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.samples.hellosceneform.env.BorderedText;
@@ -89,11 +95,19 @@ import edu.umb.cs.imageprocessinglib.model.Recognition;
  */
 public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener {
     private  static final String TAG = "RECTANGLE_DEBUG";
+    private static final int OWNER_STATE=1, VIEWER_STATE=2;
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
     private static final double MIN_OPENGL_VERSION = 3.1;
 
     //fixed file name for storing metadata of image features and recognitions
     private static final String dataFileName = "data_file";
+
+    private int state=OWNER_STATE;
+
+    private TransformableNode andy;
+
+
+
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
     private Map<String,List<List<ImageFeature>>> rs;
@@ -279,12 +293,29 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 });
 
         //added by bo
-
         Button recBtn = findViewById(R.id.record);  //record button
         Button rteBtn = findViewById(R.id.retrieve);    //retrieve button
+        recBtn.setTag("Place VO");
         recBtn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
-                onRecord = true;
+                SeekBar sbar=findViewById(R.id.seekBar);
+               Button btn=(Button) view;
+                String tag=(String)btn.getTag();
+                if(tag.equals("Place VO")) {
+                    btn.setText("Confirm");
+                    btn.setTag("Confirm");
+                    placeAndy();
+                    sbar.setProgress(50);
+                    sbar.setVisibility(View.VISIBLE);
+
+                }
+                else{
+                    onRecord = true;
+                    btn.setTag("Place VO");
+                    btn.setText("Place VO");
+                    sbar.setVisibility(View.INVISIBLE);
+
+                }
             }
         });
         rteBtn.setOnClickListener(new View.OnClickListener(){
@@ -295,6 +326,58 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 });
             }
         });
+
+
+        RadioButton rb=findViewById(R.id.rb_owner);
+        rb.setChecked(true);
+        rteBtn.setEnabled(false);
+
+        RadioGroup radioGroup=findViewById(R.id.rg_role);
+        radioGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                RadioButton rb = (RadioButton) group.findViewById(checkedId);
+                String msg= "Switch to "+ rb.getText();
+                if (null != rb ) {
+                    Toast.makeText(HelloSceneformActivity.this, msg, Toast.LENGTH_SHORT).show();
+                }
+                if(rb.getId()==R.id.rb_owner){
+                    recBtn.setEnabled(true);
+                    rteBtn.setEnabled(false);
+                    state=OWNER_STATE;
+                }else{
+                    recBtn.setEnabled(false);
+                    rteBtn.setEnabled(true);
+                    state=VIEWER_STATE;
+                }
+            }
+        });
+
+        SeekBar sbar=findViewById(R.id.seekBar);
+        sbar.setMax(100);
+        sbar.setMin(0);
+        sbar.setVisibility(View.INVISIBLE);
+
+        sbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                                            @Override
+                                            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                                                float dist=(float)((i-50)*0.01+1);
+                                                placeAndyWithDist(dist);
+                                            }
+
+                                            @Override
+                                            public void onStartTrackingTouch(SeekBar seekBar) {
+
+                                            }
+
+                                            @Override
+                                            public void onStopTrackingTouch(SeekBar seekBar) {
+
+                                            }
+                                        }
+
+
+        );
     }
 
     void loadData() {
@@ -634,8 +717,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     public void onPeekTouch (){
         Log.d("myTag","on peek touch");
 
-//        if (andyRenderable == null) {
-        if (true) {
+        return;
+/*
+        if (andyRenderable == null) {
+//        if (true) {
             return;
         }
 
@@ -667,9 +752,79 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         andy.setParent(anchorNode);
         andy.setRenderable(andyRenderable);
         andy.select();
-
+*/
     }
 
+
+    void placeAndy(){
+        if (andyRenderable == null) {
+//        if (true) {
+            return;
+        }
+
+        Camera camera=arFragment.getArSceneView().getArFrame().getCamera();
+        Pose mCameraRelativePose= Pose.makeTranslation(0.0f, 0.0f, -1f);
+        arSession = arFragment.getArSceneView().getSession();
+
+        if(mCameraRelativePose==null) Log.d("myTag","pose is null");
+        else Log.d("myTag","pose is not null");
+
+        if(arSession==null) Log.d("myTag","arSession is null");
+        Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
+        if(cPose!=null)
+            Log.d("myTag","camera pose is not null" + cPose.toString());
+        Anchor anchor=arSession.createAnchor(cPose);
+
+        if(anchor==null) Log.d("myTag","anchor is null");
+        else Log.d("myTag","anchor is not null");
+
+        Log.d("myTag","step 1");
+        //copy&paste
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setParent(arFragment.getArSceneView().getScene());
+
+        Log.d("myTag","step 2");
+
+        // Create the transformable andy and add it to the anchor.
+        if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
+        placeAndy(anchorNode);
+    }
+
+    void placeAndyWithDist(float dist){
+        if (andyRenderable == null) {
+//        if (true) {
+            return;
+        }
+
+        Camera camera=arFragment.getArSceneView().getArFrame().getCamera();
+        Pose mCameraRelativePose= Pose.makeTranslation(0.0f, 0.0f, -dist);
+        arSession = arFragment.getArSceneView().getSession();
+
+        if(mCameraRelativePose==null) Log.d("myTag","pose is null");
+        else Log.d("myTag","pose is not null");
+
+        if(arSession==null) Log.d("myTag","arSession is null");
+        Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
+        if(cPose!=null)
+            Log.d("myTag","camera pose is not null" + cPose.toString());
+        Anchor anchor=arSession.createAnchor(cPose);
+
+        if(anchor==null) Log.d("myTag","anchor is null");
+        else Log.d("myTag","anchor is not null");
+
+        //copy&paste
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setParent(arFragment.getArSceneView().getScene());
+
+        if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
+        placeAndy(anchorNode);
+    }
+
+    void placeAndy(AnchorNode an){
+        andy.setParent(an);
+        andy.setRenderable(andyRenderable);
+        andy.select();
+    }
 
     /**
      * Returns false and displays an error message if Sceneform can not run, true if Sceneform can run
