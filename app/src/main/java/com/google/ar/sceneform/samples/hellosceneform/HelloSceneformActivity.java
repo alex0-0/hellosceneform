@@ -349,6 +349,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     recBtn.setEnabled(false);
                     rteBtn.setEnabled(true);
                     state=VIEWER_STATE;
+                    andy.setParent(null);
                 }
             }
         });
