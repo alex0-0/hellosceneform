@@ -613,7 +613,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 int k = 0;
             }
 
-            data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() + "\n");
+            data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid());
 
             fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
                     ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
