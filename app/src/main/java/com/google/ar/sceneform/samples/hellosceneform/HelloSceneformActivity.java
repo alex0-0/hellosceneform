@@ -17,6 +17,8 @@ package com.google.ar.sceneform.samples.hellosceneform;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Fragment;
+import android.app.FragmentManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -27,6 +29,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.media.Image;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
@@ -93,7 +96,7 @@ import edu.umb.cs.imageprocessinglib.model.Recognition;
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
  */
-public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener {
+public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener, SavingFeatureDialog.OnFragmentInteractionListener {
     private  static final String TAG = "RECTANGLE_DEBUG";
     private static final int OWNER_STATE=1, VIEWER_STATE=2;
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
@@ -583,6 +586,12 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     static int kTemplateFPNum = 100;
     static int kDisThd = 300;
     private void record(Bitmap img, List<Recognition> recognitions) {
+        runOnUiThread(()->{
+            FragmentManager fm=getFragmentManager();
+            SavingFeatureDialog sf=new SavingFeatureDialog();
+            sf.show(fm, "sf_dialog");
+        });
+
         setAngle();
         FeatureStorage fs = new FeatureStorage();
         Mat mat = new Mat();
@@ -622,6 +631,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         MyUtils.writeToFile(dataFileName, data.toString(), this);
         runOnUiThread(()->{
             Toast.makeText(getApplicationContext(), "Image features saved", Toast.LENGTH_SHORT).show();
+            FragmentManager fm=getFragmentManager();
+            SavingFeatureDialog sf=(SavingFeatureDialog)fm.findFragmentByTag("sf_dialog");
+            if(sf!=null) sf.dismiss();;
+
         });
         onRecord = false;
 
@@ -1003,6 +1016,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         refRD = cRD;    //just in case cRD is re-assigned value
         checkAngle=true;
         firstValue=true;
+    }
+
+    @Override
+    public void onFragmentInteraction(Uri uri) {
+
     }
 
     private class RotationData{
