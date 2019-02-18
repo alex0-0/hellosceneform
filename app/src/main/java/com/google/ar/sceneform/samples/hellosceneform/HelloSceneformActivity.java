@@ -60,12 +60,11 @@ import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.sceneform.AnchorNode;
-import com.google.ar.sceneform.Node;
-import com.google.ar.sceneform.NodeParent;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.samples.hellosceneform.env.BorderedText;
 import com.google.ar.sceneform.samples.hellosceneform.env.ImageUtils;
+import com.google.ar.sceneform.samples.hellosceneform.env.Size;
 import com.google.ar.sceneform.samples.hellosceneform.tracking.MultiBoxTracker;
 import com.google.ar.sceneform.ux.TransformableNode;
 
@@ -97,7 +96,7 @@ import edu.umb.cs.imageprocessinglib.model.Recognition;
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
  */
 public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener, SavingFeatureDialog.OnFragmentInteractionListener {
-    private  static final String TAG = "RECTANGLE_DEBUG";
+    private  static final String TAG = "MAIN_DEBUG";
     private static final int OWNER_STATE=1, VIEWER_STATE=2;
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
     private static final double MIN_OPENGL_VERSION = 3.1;
@@ -114,6 +113,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
     private Map<String,List<List<ImageFeature>>> rs;
+    private Map<String,List<BoxPosition>> bs; //store position
+    Size imgSize;
 
     private MyArFragment arFragment;
     private ModelRenderable andyRenderable;
@@ -389,16 +390,23 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             FeatureStorage fs = new FeatureStorage();
             String data = MyUtils.readFromFile(dataFileName, this);
             rs = new HashMap<>();
+            bs = new HashMap<>();
             String[] recStrs = data.split("\n");
             String[] os = recStrs[0].split(" ");
             String dirPath = getFilesDir().getPath();
+            //TODO: retrieve original image size and each recognition position
             //get orientation data
             refRD = new RotationData(new Float(os[0]),new Float(os[1]),new Float(os[2]));
+            imgSize = new Size(new Integer(os[3]), new Integer(os[4]));
             for (int i=1; i<recStrs.length; i++) {
+//                data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
+//                        + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
                 String r = recStrs[i];
                 String[] rec = r.split("\t");
                 if (rs.get(rec[0]) == null)
                     rs.put(rec[0], new ArrayList<>());
+                if (bs.get(rec[0]) == null)
+                    bs.put(rec[0], new ArrayList<>());
                 //restore image features
                 String fName = dirPath + "/" + rec[2];
                 List<ImageFeature> IFs = new ArrayList<>();
@@ -407,6 +415,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 IFs.add(fs.loadFPfromFile(fName + "_top"));
                 IFs.add(fs.loadFPfromFile(fName + "_bottom"));
                 rs.get(rec[0]).add(IFs);
+                bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
+                        new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
             }
         }
         runOnUiThread(()->{
@@ -523,7 +533,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 new Runnable() {
                     @Override
                     public void run() {
-                        final long startTime = SystemClock.uptimeMillis();
 
                         Log.d("myTag","before recognizeimage");
                         final List<Recognition> results = objectDetector.recognizeImage(croppedBitmap);
@@ -536,7 +545,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                             BoxPosition pos = result.getLocation();
                             final RectF location = new RectF(pos.getLeft(), pos.getTop(), pos.getRight(), pos.getBottom());
 //                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
-                            Log.d(TAG, "main: rect before transform " + location.toString());
+//                            Log.d(TAG, "main: rect before transform " + location.toString());
                             cropToFrameTransform.mapRect(location);
                             roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
                             result.setLocation(new BoxPosition(location.left, location.top, location.width(), location.height()));
@@ -598,6 +607,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         Utils.bitmapToMat(img, mat);
         StringBuilder data = new StringBuilder();
         data.append(refRD);
+        data.append(" " + img.getWidth() + " " + img.getHeight());
         String dirPath = getFilesDir().getPath();
         for (Recognition r : recognitions) {
             BoxPosition location = r.getLocation();
@@ -606,14 +616,15 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
             //TODO:figure out if the orientation of the original image influence the final matching
             //At present the image is counter-clock rotated 90 degrees
-            List<Mat> leftImgs = ImageProcessor.changeToLeftPerspective(tMat, 5f, 10);
-            for (Mat i : leftImgs) {
-                Bitmap bitmap=Bitmap.createBitmap(i.cols(),  i.rows(), Bitmap.Config.ARGB_8888);
-                Utils.matToBitmap(i,bitmap);
-                int k = 0;
-            }
+//            List<Mat> leftImgs = ImageProcessor.changeToLeftPerspective(tMat, 5f, 10);
+//            for (Mat i : leftImgs) {
+//                Bitmap bitmap=Bitmap.createBitmap(i.cols(),  i.rows(), Bitmap.Config.ARGB_8888);
+//                Utils.matToBitmap(i,bitmap);
+//                int k = 0;
+//            }
 
-            data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid());
+            data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
+                    + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
 
             fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
                     ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
