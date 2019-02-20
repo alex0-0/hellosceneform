@@ -23,6 +23,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.graphics.RectF;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -108,12 +109,15 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
     private TransformableNode andy;
 
+    private float v_viewangle=60, h_viewangle=48;
+
+    private float VO_dist=0, VO_dist_for_viewer=0;
 
 
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
     private Map<String,List<List<ImageFeature>>> rs;
-    private Map<String,List<BoxPosition>> bs; //store position
+    private Map<String,BoxPosition> bs; //store position
     Size imgSize;
 
     private MyArFragment arFragment;
@@ -367,6 +371,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                                             @Override
                                             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
                                                 float dist=(float)((i-50)*0.01+1);
+                                                VO_dist=dist;
                                                 placeAndyWithDist(dist);
                                             }
 
@@ -398,6 +403,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             //get orientation data
             refRD = new RotationData(new Float(os[0]),new Float(os[1]),new Float(os[2]));
             imgSize = new Size(new Integer(os[3]), new Integer(os[4]));
+            VO_dist_for_viewer= Float.parseFloat(os[5]);
             for (int i=1; i<recStrs.length; i++) {
 //                data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
 //                        + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
@@ -405,8 +411,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 String[] rec = r.split("\t");
                 if (rs.get(rec[0]) == null)
                     rs.put(rec[0], new ArrayList<>());
-                if (bs.get(rec[0]) == null)
-                    bs.put(rec[0], new ArrayList<>());
+                //if (bs.get(rec[0]) == null)
+                //    bs.put(rec[0], new ArrayList<>());
                 //restore image features
                 String fName = dirPath + "/" + rec[2];
                 List<ImageFeature> IFs = new ArrayList<>();
@@ -415,7 +421,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 IFs.add(fs.loadFPfromFile(fName + "_top"));
                 IFs.add(fs.loadFPfromFile(fName + "_bottom"));
                 rs.get(rec[0]).add(IFs);
-                bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
+                //bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
+                        //new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
+                bs.put(rec[0],new BoxPosition(new Float(rec[4]), new Float(rec[3]),
                         new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
             }
         }
@@ -552,6 +560,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         }
 
                         if (results.size() > 0) {
+                            Log.d("myTag","result size >0:"+Integer.toString(results.size()));
+
                             if (onRecord) {
                                 record(copyBitmp, results);
                             }
@@ -607,7 +617,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         Utils.bitmapToMat(img, mat);
         StringBuilder data = new StringBuilder();
         data.append(refRD);
-        data.append(" " + img.getWidth() + " " + img.getHeight());
+        data.append(" " + img.getWidth() + " " + img.getHeight()+" " + VO_dist);
         String dirPath = getFilesDir().getPath();
         for (Recognition r : recognitions) {
             BoxPosition location = r.getLocation();
@@ -652,6 +662,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     }
 
     private void retrieve(Bitmap img, List<Recognition> recognitions) {
+
+        Log.d("match strings","enter retrieve method");
+
+        double mr_th=-1; //matching ratio threshold
+        boolean match=false;
         Mat mat = new Mat();
         Utils.bitmapToMat(img, mat);
         Set<String> recs = rs.keySet();
@@ -660,28 +675,101 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         float hd = (Math.abs(cRD.z - refRD.z)>180)?(360-(cRD.z-refRD.z)) : (cRD.z-refRD.z);
         //vertical angle difference, assume the angle can't exceed 90
         float vd = cRD.x-refRD.x;
+        float vo_x=0;
+        float vo_y=0;
+        float scale=0;
+
         if (Math.abs(hd) > 90 || Math.abs(vd) > 90)
             sb.append("angle difference larger than 90 degree");
         else {
+            int count_r=0;
+            Log.d("match strings","recognized "+Integer.toString(recognitions.size())+" items");
+
             for (Recognition r : recognitions) {
+                double mr=0; //temperarily same the matching ratio
                 if (recs.contains(r.getTitle())) {
                     BoxPosition location = r.getLocation();
                     Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
                     Mat qMat = new Mat(mat, roi);
                     ImageFeature qIF = ImageProcessor.extractORBFeatures(qMat, 500);
                     List<List<ImageFeature>> tIFs = rs.get(r.getTitle());
+
                     for (List<ImageFeature> ts : tIFs) {
                         ImageFeature tIF = constructTemplateFP(ts, hd, vd, kTemplateFPNum);
                         MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
-                        sb.append(r.getTitle() + " " + (float) matches.total() / tIF.getSize() + ",");
+
+                        double tmr = (double) matches.total() / tIF.getSize();
+                        sb.append(r.getTitle() + " " + tmr + ",");
+                        if (tmr > mr) mr = tmr;
+                    }
+
+
+                    //derive the position of the VO
+                    if (mr > mr_th) {
+                        match = true;
+                        BoxPosition bp = (BoxPosition) bs.get(r.getTitle());
+                        if (bp == null) return;
+                        float img_center_x = (float) imgSize.width / 2;
+                        float img_center_y = (float) imgSize.height / 2;
+                        float box_center_x = bp.getLeft() + bp.getWidth() / 2;
+                        float box_center_y = bp.getTop() + bp.getHeight() / 2;
+                        float dx = img_center_x - box_center_x;
+                        float dy = img_center_y - box_center_y;
+
+                        //BoxPosition location = r.getLocation();
+                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getWidth() / location.getHeight()) / 2;
+                        float r_center_x = location.getLeft() + location.getWidth() / 2;
+                        float r_center_y = location.getLeft() + location.getHeight() / 2;
+
+                        vo_x += r_center_x + dx * r_scale;
+                        vo_y += r_center_y + dx * r_scale;
+                        scale += r_scale;
+                        count_r++;
                     }
                 }
             }
+            if(match) {
+                vo_x = vo_x / count_r;
+                vo_y = vo_y / count_r;
+                scale= scale / count_r;
+            }
         }
-        runOnUiThread(()->{
-            TextView tv = findViewById(R.id.mratio);
-            tv.setText(sb.toString());
-        });
+        Log.d("match strings",sb.toString());
+        if(match) {
+
+            float finalScale = scale;
+            float finalVo_x = vo_x;
+            float finalVo_y = vo_y;
+            Log.d("match strings","scale:"+Float.toString(finalScale)+" "+Float.toString(finalVo_x)+" "+Float.toString(finalVo_y));
+
+
+            runOnUiThread(() -> {
+                TextView tv = findViewById(R.id.mratio);
+                tv.setText(sb.toString());
+
+                float width=imgSize.height;
+                float height=imgSize.width;
+                float x,y,z;
+                float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
+                float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
+                Log.d("match string",String.format("width:%.02f,height:%.02f",width, height));
+                Log.d("match string","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
+                float v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
+                float v_dist_center= (float)Math.sqrt((finalVo_x -width/2)*(finalVo_x -width/2)+(finalVo_y -height/2)*(finalVo_y -height/2));
+                float v_angle=(float)Math.atan(v_dist_center/v_dist);
+                float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
+                float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
+
+                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale *Math.cos(v_angle) / v_dist);
+                z = -v_dist*dist_to_pixel;
+                x= (finalVo_x-width/2)*dist_to_pixel;
+                y= (finalVo_y-height/2)*dist_to_pixel;
+                Log.d("match string",String.format("before placeAndy:%.02f,%.02f,%.02f",x,y,z));
+                placeAndy(x, y, z);
+                onRetrieve=false;
+
+            });
+        }
     }
 
     ImageFeature constructTemplateFP(List<ImageFeature> tIFs, float hd, float vd, int tNum) {
@@ -822,26 +910,36 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         }
 
         Camera camera=arFragment.getArSceneView().getArFrame().getCamera();
-        Pose mCameraRelativePose= Pose.makeTranslation(0.0f, 0.0f, -dist);
         arSession = arFragment.getArSceneView().getSession();
 
-        if(mCameraRelativePose==null) Log.d("myTag","pose is null");
-        else Log.d("myTag","pose is not null");
+        float y=(float) (dist*Math.tan(Math.PI/6));
+        Pose mCameraRelativePose= Pose.makeTranslation(0.0f, 0, -dist);
+        //Log.d("myTag","dist:"+Float.toString(dist)+", y:"+Float.toString(y));
 
-        if(arSession==null) Log.d("myTag","arSession is null");
         Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
-        if(cPose!=null)
-            Log.d("myTag","camera pose is not null" + cPose.toString());
         Anchor anchor=arSession.createAnchor(cPose);
-
-        if(anchor==null) Log.d("myTag","anchor is null");
-        else Log.d("myTag","anchor is not null");
 
         //copy&paste
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setParent(arFragment.getArSceneView().getScene());
 
         if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
+        placeAndy(anchorNode);
+    }
+
+    void placeAndy(float x, float y, float z){
+        Camera camera=arFragment.getArSceneView().getArFrame().getCamera();
+        Pose mCameraRelativePose= Pose.makeTranslation(x, y, z);
+        arSession = arFragment.getArSceneView().getSession();
+
+        Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
+        Anchor anchor=arSession.createAnchor(cPose);
+
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setParent(arFragment.getArSceneView().getScene());
+
+        if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
+
         placeAndy(anchorNode);
     }
 
