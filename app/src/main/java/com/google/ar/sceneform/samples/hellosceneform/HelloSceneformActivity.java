@@ -117,7 +117,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
     private Map<String,List<List<ImageFeature>>> rs;
-    private Map<String,BoxPosition> bs; //store position
+    private Map<String,List<BoxPosition>> bs; //store position
     Size imgSize;
 
     private MyArFragment arFragment;
@@ -304,24 +304,32 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         Button recBtn = findViewById(R.id.record);  //record button
         Button rteBtn = findViewById(R.id.retrieve);    //retrieve button
         recBtn.setTag("Place VO");
+        rteBtn.setTag("Retrieve");
         recBtn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
                 SeekBar sbar=findViewById(R.id.seekBar);
-               Button btn=(Button) view;
+                Button btn=(Button) view;
                 String tag=(String)btn.getTag();
                 if(tag.equals("Place VO")) {
-                    btn.setText("Confirm");
-                    btn.setTag("Confirm");
                     placeAndy();
-                    sbar.setProgress(50);
-                    sbar.setVisibility(View.VISIBLE);
+                    runOnUiThread(()-> {
+                        btn.setText("Confirm");
+                        btn.setTag("Confirm");
+
+                        sbar.setProgress(50);
+                        sbar.setVisibility(View.VISIBLE);
+
+                    });
 
                 }
                 else{
                     onRecord = true;
-                    btn.setTag("Place VO");
-                    btn.setText("Place VO");
-                    sbar.setVisibility(View.INVISIBLE);
+                    runOnUiThread(()-> {
+                        btn.setTag("Place VO");
+                        btn.setText("Place VO");
+                        sbar.setVisibility(View.INVISIBLE);
+                    });
+
 
                 }
             }
@@ -329,6 +337,29 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         rteBtn.setOnClickListener(new View.OnClickListener(){
             public void onClick(View view) {
                 AsyncTask.execute(()->{
+                    Button btn=(Button) view;
+                    String tag=(String)btn.getTag();
+                    if(tag.equals("Retrieve")) {
+
+                        loadData();
+                        onRetrieve = true;
+                        runOnUiThread(()-> {
+                            btn.setText("Clear");
+                            btn.setTag("Clear");
+                            btn.setEnabled(false);
+                        });
+                    }
+                    else{
+                        onRecord = true;
+
+
+                        runOnUiThread(()-> {
+                            btn.setTag("Retrieve");
+                            btn.setText("Retrieve");
+                            andy.setParent(null);
+                        });
+
+                    }
                     loadData();
                     onRetrieve = true;
                 });
@@ -353,6 +384,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     recBtn.setEnabled(true);
                     rteBtn.setEnabled(false);
                     state=OWNER_STATE;
+                    onRetrieve=false;
                 }else{
                     recBtn.setEnabled(false);
                     rteBtn.setEnabled(true);
@@ -411,8 +443,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 String[] rec = r.split("\t");
                 if (rs.get(rec[0]) == null)
                     rs.put(rec[0], new ArrayList<>());
-                //if (bs.get(rec[0]) == null)
-                //    bs.put(rec[0], new ArrayList<>());
+                if (bs.get(rec[0]) == null)
+                    bs.put(rec[0], new ArrayList<>());
                 //restore image features
                 String fName = dirPath + "/" + rec[2];
                 List<ImageFeature> IFs = new ArrayList<>();
@@ -421,14 +453,16 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 IFs.add(fs.loadFPfromFile(fName + "_top"));
                 IFs.add(fs.loadFPfromFile(fName + "_bottom"));
                 rs.get(rec[0]).add(IFs);
-                //bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
-                        //new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
-                bs.put(rec[0],new BoxPosition(new Float(rec[4]), new Float(rec[3]),
+                bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
                         new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
+                //bs.put(rec[0],new BoxPosition(new Float(rec[4]), new Float(rec[3]),
+                //        new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
             }
         }
         runOnUiThread(()->{
             Toast.makeText(getApplicationContext(), "Data loaded", Toast.LENGTH_SHORT).show();
+            Button btn=findViewById(R.id.retrieve);
+            btn.setEnabled(true);
         });
     }
 
@@ -665,7 +699,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
         Log.d("match strings","enter retrieve method");
 
-        double mr_th=-1; //matching ratio threshold
+        double mr_th=0.05; //matching ratio threshold
         boolean match=false;
         Mat mat = new Mat();
         Utils.bitmapToMat(img, mat);
@@ -693,46 +727,54 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     Mat qMat = new Mat(mat, roi);
                     ImageFeature qIF = ImageProcessor.extractORBFeatures(qMat, 500);
                     List<List<ImageFeature>> tIFs = rs.get(r.getTitle());
-
+                    int match_idx=-1;
                     for (List<ImageFeature> ts : tIFs) {
                         ImageFeature tIF = constructTemplateFP(ts, hd, vd, kTemplateFPNum);
                         MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
 
                         double tmr = (double) matches.total() / tIF.getSize();
                         sb.append(r.getTitle() + " " + tmr + ",");
-                        if (tmr > mr) mr = tmr;
+                        if (tmr > mr){
+                            mr = tmr;
+                            match_idx=tIFs.indexOf(ts);
+                        }
                     }
 
 
                     //derive the position of the VO
                     if (mr > mr_th) {
                         match = true;
-                        BoxPosition bp = (BoxPosition) bs.get(r.getTitle());
+                        List<BoxPosition> bpList=bs.get(r.getTitle());
+                        BoxPosition bp = (BoxPosition) bpList.get(match_idx);
                         if (bp == null) return;
-                        float img_center_x = (float) imgSize.width / 2;
-                        float img_center_y = (float) imgSize.height / 2;
+                        float img_center_y = (float) imgSize.width / 2;
+                        float img_center_x = (float) imgSize.height / 2;
+                        Log.d("match string",String.format("center.x:%.02f,center.y:%.02f",img_center_x,img_center_y));
+
                         float box_center_x = bp.getLeft() + bp.getWidth() / 2;
                         float box_center_y = bp.getTop() + bp.getHeight() / 2;
                         float dx = img_center_x - box_center_x;
                         float dy = img_center_y - box_center_y;
+                        Log.d("match string",String.format("dx:%.02f,dy:%.02f",dx,dy));
+                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getHeight() / location.getHeight()) / 2;
+                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",bp.getWidth() / location.getWidth(), bp.getHeight() / location.getHeight(),r_scale));
 
-                        //BoxPosition location = r.getLocation();
-                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getWidth() / location.getHeight()) / 2;
                         float r_center_x = location.getLeft() + location.getWidth() / 2;
-                        float r_center_y = location.getLeft() + location.getHeight() / 2;
+                        float r_center_y = location.getTop() + location.getHeight() / 2;
 
-                        vo_x += r_center_x + dx * r_scale;
-                        vo_y += r_center_y + dx * r_scale;
-                        scale += r_scale;
-                        count_r++;
+                        vo_x = r_center_x + dx * r_scale;
+                        vo_y = r_center_y + dy * r_scale;
+                        scale = r_scale;
+                        //count_r++;
                     }
                 }
             }
+            /*
             if(match) {
                 vo_x = vo_x / count_r;
                 vo_y = vo_y / count_r;
                 scale= scale / count_r;
-            }
+            }*/
         }
         Log.d("match strings",sb.toString());
         if(match) {
