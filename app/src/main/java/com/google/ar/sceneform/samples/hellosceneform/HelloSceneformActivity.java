@@ -346,13 +346,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         runOnUiThread(()-> {
                             btn.setText("Clear");
                             btn.setTag("Clear");
-                            btn.setEnabled(false);
+                            //btn.setEnabled(false);
                         });
                     }
                     else{
-                        onRecord = true;
-
-
+                        onRetrieve=false;
                         runOnUiThread(()-> {
                             btn.setTag("Retrieve");
                             btn.setText("Retrieve");
@@ -360,8 +358,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         });
 
                     }
-                    loadData();
-                    onRetrieve = true;
+
                 });
             }
         });
@@ -461,7 +458,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         }
         runOnUiThread(()->{
             Toast.makeText(getApplicationContext(), "Data loaded", Toast.LENGTH_SHORT).show();
-            Button btn=findViewById(R.id.retrieve);
+            Button btn= findViewById(R.id.retrieve);
             btn.setEnabled(true);
         });
     }
