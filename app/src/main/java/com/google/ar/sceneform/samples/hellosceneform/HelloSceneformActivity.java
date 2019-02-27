@@ -29,6 +29,9 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.media.Image;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -39,7 +42,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.SizeF;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -178,6 +183,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             return;
         }
         OpenCVLoader.initDebug();
+
+        //calculate filed of views
+        setFOV();
 
         setContentView(R.layout.activity_ux);
         arFragment = (MyArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
@@ -419,6 +427,35 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         );
     }
 
+    //FOV (rectilinear) =  2 * arctan (frame size/(focal length * 2))
+    void setFOV() {
+        //suppose there is only one camera
+        int camNum = 0;
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            String[] cameraIds = manager.getCameraIdList();
+            for (String id : cameraIds) {
+//            if (cameraIds.length > camNum) {
+//                CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraIds[camNum]);
+                CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
+//                size = character.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+                int cOrientation = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (cOrientation == CameraCharacteristics.LENS_FACING_BACK) {
+                    float[] maxFocus = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+                    SizeF size = characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+                    float w = size.getWidth();
+                    float h = size.getHeight();
+                    h_viewangle = (float) (2 * Math.atan(w / (maxFocus[0] * 2)))/(float)(2*Math.PI)*360;
+                    v_viewangle = (float) (2 * Math.atan(h / (maxFocus[0] * 2)))/(float)(2*Math.PI)*360;
+                }
+            }
+        }
+        catch (CameraAccessException e)
+        {
+            Log.e(TAG, e.getMessage(), e);
+        }
+    }
+
     void loadData() {
         if (rs==null) {
             FeatureStorage fs = new FeatureStorage();
@@ -428,7 +465,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             String[] recStrs = data.split("\n");
             String[] os = recStrs[0].split(" ");
             String dirPath = getFilesDir().getPath();
-            //TODO: retrieve original image size and each recognition position
             //get orientation data
             refRD = new RotationData(new Float(os[0]),new Float(os[1]),new Float(os[2]));
             imgSize = new Size(new Integer(os[3]), new Integer(os[4]));
@@ -574,8 +610,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     public void run() {
 
                         Log.d("myTag","before recognizeimage");
+                        final long startTime = System.currentTimeMillis();
                         final List<Recognition> results = objectDetector.recognizeImage(croppedBitmap);
 //                        final List<Recognition> results = objectDetector.recognizeImage(rgbFrameBitmap);
+                        long endTime = System.currentTimeMillis();
+                        Log.d(TAG, "Recognition number:\t" + results.size() + " time:\t"+(endTime-startTime));
 //
                         org.opencv.core.Rect roi = new org.opencv.core.Rect();
 //
@@ -786,8 +825,15 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 TextView tv = findViewById(R.id.mratio);
                 tv.setText(sb.toString());
 
-                float width=imgSize.height;
-                float height=imgSize.width;
+//                DisplayMetrics displayMetrics = new DisplayMetrics();
+//                getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+//                float width = displayMetrics.heightPixels;
+//                float height = displayMetrics.widthPixels;
+
+                float width=previewHeight;
+                float height=previewWidth;
+//                float width=imgSize.height;
+//                float height=imgSize.width;
                 float x,y,z;
                 float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
                 float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
