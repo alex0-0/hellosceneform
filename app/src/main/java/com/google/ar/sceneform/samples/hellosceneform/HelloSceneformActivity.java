@@ -78,6 +78,7 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
+import org.opencv.core.DMatch;
 import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfDMatch;
@@ -735,7 +736,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
         Log.d("match strings","enter retrieve method");
 
-        double mr_th=0.05; //matching ratio threshold
+        double mr_th=0.15; //matching ratio threshold
         boolean match=false;
         Mat mat = new Mat();
         Utils.bitmapToMat(img, mat);
@@ -755,8 +756,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             int count_r=0;
             Log.d("match strings","recognized "+Integer.toString(recognitions.size())+" items");
 
+            MatOfDMatch m = null;
+            ImageFeature qmIF = null;
+            ImageFeature tmIF = null;
             for (Recognition r : recognitions) {
-                double mr=0; //temperarily same the matching ratio
+                double mr=0; //temporarily save the matching ratio
                 if (recs.contains(r.getTitle())) {
                     BoxPosition location = r.getLocation();
                     Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
@@ -773,6 +777,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         if (tmr > mr){
                             mr = tmr;
                             match_idx=tIFs.indexOf(ts);
+                            m = matches;
+                            qmIF = qIF;
+                            tmIF = tIF;
                         }
                     }
 
@@ -781,22 +788,55 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     if (mr > mr_th) {
                         match = true;
                         List<BoxPosition> bpList=bs.get(r.getTitle());
-                        BoxPosition bp = (BoxPosition) bpList.get(match_idx);
+                        BoxPosition bp = bpList.get(match_idx);
                         if (bp == null) return;
-                        float img_center_y = (float) imgSize.width / 2;
-                        float img_center_x = (float) imgSize.height / 2;
-                        Log.d("match string",String.format("center.x:%.02f,center.y:%.02f",img_center_x,img_center_y));
 
-                        float box_center_x = bp.getLeft() + bp.getWidth() / 2;
-                        float box_center_y = bp.getTop() + bp.getHeight() / 2;
-                        float dx = img_center_x - box_center_x;
-                        float dy = img_center_y - box_center_y;
+                        double tmin_x, tmin_y, tmax_x, tmax_y;
+                        double qmin_x, qmin_y, qmax_x, qmax_y;
+                        qmax_x = qmax_y = tmax_x = tmax_y = Double.MIN_VALUE;
+                        qmin_x = qmin_y = tmin_x = tmin_y = Double.MAX_VALUE;
+
+                        List<KeyPoint> tKP = tmIF.getObjectKeypoints().toList();
+                        List<KeyPoint> qKP = qmIF.getObjectKeypoints().toList();
+                        //get a rectangle that can bound the matched key point
+                        for (DMatch dMatch : m.toList()) {
+                            KeyPoint q = qKP.get(dMatch.queryIdx);
+                            KeyPoint t = tKP.get(dMatch.trainIdx);
+                            if (q.pt.x > qmax_x) qmax_x = q.pt.x;
+                            if (q.pt.y > qmax_y) qmax_y = q.pt.y;
+                            if (t.pt.x > tmax_x) tmax_x = t.pt.x;
+                            if (t.pt.y > tmax_y) tmax_y = t.pt.y;
+                            if (q.pt.x < qmin_x) qmin_x = q.pt.x;
+                            if (q.pt.y < qmin_y) qmin_y = q.pt.y;
+                            if (t.pt.x < tmin_x) tmin_x = t.pt.x;
+                            if (t.pt.y < tmin_y) tmin_y = t.pt.y;
+                        }
+                        float dx = (float)(imgSize.height/2 -(tmax_x+tmin_x)/2);
+                        float dy = (float)(imgSize.width/2 -(tmax_y+tmin_y)/2);
                         Log.d("match string",String.format("dx:%.02f,dy:%.02f",dx,dy));
-                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getHeight() / location.getHeight()) / 2;
-                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",bp.getWidth() / location.getWidth(), bp.getHeight() / location.getHeight(),r_scale));
+                        float r_scale = (float)((tmax_x-tmin_x) / (qmax_x-qmin_x) + (tmax_y-tmin_y) / (qmax_y-qmin_y)) / 2;
+                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",(tmax_x-tmin_x) / (qmax_x-qmin_x), (tmax_y-tmin_y) / (qmax_y-qmin_y),r_scale));
+                        Log.d("match string",String.format("qmin:(%.02f,%.02f)\tqmax:(%.02f,%.02f)\ttmin(%.02f,%.02f)\ttmax(%.02f,%.02f)",
+                                qmin_x, qmin_y, qmax_x, qmax_y, tmin_x, tmin_y, tmax_x, tmax_y));
+                        float r_center_x = (float)(qmax_x+qmin_x) / 2;
+                        float r_center_y = (float)(qmax_y+qmin_y) / 2;
 
-                        float r_center_x = location.getLeft() + location.getWidth() / 2;
-                        float r_center_y = location.getTop() + location.getHeight() / 2;
+
+
+//                        float img_center_y = (float) imgSize.width / 2;
+//                        float img_center_x = (float) imgSize.height / 2;
+//                        Log.d("match string",String.format("center.x:%.02f,center.y:%.02f",img_center_x,img_center_y));
+//
+//                        float box_center_x = bp.getLeft() + bp.getWidth() / 2;
+//                        float box_center_y = bp.getTop() + bp.getHeight() / 2;
+//                        float dx = img_center_x - box_center_x;
+//                        float dy = img_center_y - box_center_y;
+//                        Log.d("match string",String.format("dx:%.02f,dy:%.02f",dx,dy));
+//                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getHeight() / location.getHeight()) / 2;
+//                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",bp.getWidth() / location.getWidth(), bp.getHeight() / location.getHeight(),r_scale));
+//
+//                        float r_center_x = location.getLeft() + location.getWidth() / 2;
+//                        float r_center_y = location.getTop() + location.getHeight() / 2;
 
                         vo_x = r_center_x + dx * r_scale;
                         vo_y = r_center_y + dy * r_scale;
@@ -845,7 +885,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
                 float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
 
-                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale *Math.cos(v_angle) / v_dist);
+//                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale *Math.cos(v_angle) / v_dist);
+                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale / v_dist);
                 z = -v_dist*dist_to_pixel;
                 x= (finalVo_x-width/2)*dist_to_pixel;
                 y= (finalVo_y-height/2)*dist_to_pixel;
