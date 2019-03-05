@@ -885,8 +885,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
                 float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
 
-//                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale *Math.cos(v_angle) / v_dist);
-                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale / v_dist);
+                float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale * Math.cos(v_angle) / v_dist);
                 z = -v_dist*dist_to_pixel;
                 x= (finalVo_x-width/2)*dist_to_pixel;
                 y= (finalVo_y-height/2)*dist_to_pixel;
