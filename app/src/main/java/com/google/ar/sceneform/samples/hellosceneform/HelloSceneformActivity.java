@@ -919,8 +919,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             IF2 = (hd>0)?tIFs.get(1) : tIFs.get(0);
         }
         if (IF1.getSize() >= tNum) return IF1;
-        //the number of FP from the other ImageFeature
-        int num = tNum - IF1.getSize();
+
         List<KeyPoint> kp = new ArrayList<>(IF1.getObjectKeypoints().toList());
         Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
         des.push_back(IF1.getDescriptors());
@@ -943,7 +942,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 Mat tMat = IF2.getDescriptors().row(i);
                 des.push_back(tMat);
             }
-            if (kp.size() >= num)
+            if (kp.size() >= tNum)
                 break;
         }
         MatOfKeyPoint tKP = new MatOfKeyPoint();
