@@ -86,6 +86,7 @@ import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.Rect;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -486,6 +487,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 IFs.add(fs.loadFPfromFile(fName + "_right"));
                 IFs.add(fs.loadFPfromFile(fName + "_top"));
                 IFs.add(fs.loadFPfromFile(fName + "_bottom"));
+                IFs.add(fs.loadFPfromFile(fName + "_scale_up"));
+                IFs.add(fs.loadFPfromFile(fName + "_scale_down"));
                 rs.get(rec[0]).add(IFs);
                 bs.get(rec[0]).add(new BoxPosition(new Float(rec[4]), new Float(rec[3]),
                         new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
@@ -719,6 +722,12 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
                     ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
                             kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, -0.05f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
         }
         MyUtils.writeToFile(dataFileName, data.toString(), this);
         runOnUiThread(()->{
@@ -767,9 +776,25 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     Mat qMat = new Mat(mat, roi);
                     ImageFeature qIF = ImageProcessor.extractORBFeatures(qMat, 500);
                     List<List<ImageFeature>> tIFs = rs.get(r.getTitle());
+                    List<BoxPosition> tBPs = bs.get(r.getTitle());
                     int match_idx=-1;
-                    for (List<ImageFeature> ts : tIFs) {
-                        ImageFeature tIF = constructTemplateFP(ts, hd, vd, kTemplateFPNum);
+                    for (int i=0; i < tIFs.size(); i++) {
+                        List<ImageFeature> ts = tIFs.get(i);
+                        BoxPosition bp = tBPs.get(i);
+                        //construct template image feature candidates
+                        List<ImageFeature> ifs = new ArrayList<>();
+                        float area_ratio = bp.getHeight()*bp.getWidth() / (r.getLocation().getWidth()*r.getLocation().getHeight());
+                        if (hd > 0)
+                            ifs.add(ts.get(1));
+                        else ifs.add(ts.get(0));
+                        if (vd>0)
+                            ifs.add(ts.get(3));
+                        else ifs.add(ts.get(2));
+                        if (area_ratio > 1)
+                            ifs.add(ts.get(5));
+                        else ifs.add(ts.get(4));
+
+                        ImageFeature tIF = constructTemplateFP(ifs, new float[]{Math.abs(hd)/45, Math.abs(vd)/45, Math.abs(area_ratio-1)}, kTemplateFPNum);
                         MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
 
                         double tmr = (double) matches.total() / tIF.getSize();
@@ -897,57 +922,167 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         }
     }
 
-    ImageFeature constructTemplateFP(List<ImageFeature> tIFs, float hd, float vd, int tNum) {
-        //tIFs is sorted as left, right, top and bottom
-        //calculate ratios
-        float hr = Math.abs(hd)/(Math.abs(hd) + Math.abs(vd));
-        float vr = Math.abs(vd)/(Math.abs(hd) + Math.abs(vd));
-        ImageFeature IF1;
-        ImageFeature IF2;
-        //guarantee the feature point robust on more-changed orientation is returned at first
-        if (hr >= vr) {
-            int num = (int)(hr * tNum);
-            IF1 = (hd>0)?tIFs.get(1) : tIFs.get(0);
-            if (IF1.getSize() > num)
-                IF1 = IF1.subImageFeature(0, num);
-            IF2 = (vd>0)?tIFs.get(3) : tIFs.get(2);
-        } else {
-            int num = (int)(vr * tNum);
-            IF1 = (vd>0)?tIFs.get(3) : tIFs.get(2);
-            if (IF1.getSize() > num)
-                IF1 = IF1.subImageFeature(0, num);
-            IF2 = (hd>0)?tIFs.get(1) : tIFs.get(0);
+    static class KPoint{
+        double x,y;
+        boolean selected =false;
+        int[] idx;
+
+        int idx1, idx2;
+        KPoint(double x, double y, int len){
+            this.x=x;this.y=y;
+            idx=new int[len];
+            Arrays.fill(idx,-1);
         }
-        if (IF1.getSize() >= tNum) return IF1;
 
-        List<KeyPoint> kp = new ArrayList<>(IF1.getObjectKeypoints().toList());
+        KPoint(double x, double y){
+            this.x=x;this.y=y;
+        }
+        @Override
+        public boolean equals(Object obj) {
+            if(!(obj instanceof KPoint)) return false;
+            KPoint kobj=(KPoint) obj;
+            return ((kobj.getX()==x)&&(kobj.getY()==y));
+        }
+
+        public double getX() {
+            return x;
+        }
+
+
+        public double getY() {
+            return y;
+        }
+
+        public void setIdx(int kp_list_idx, int fp_idx) {
+            idx[kp_list_idx]=fp_idx;
+        }
+
+
+        public int getIdx(int i) {
+            return idx[i];
+        }
+
+
+
+        public void setSelected(boolean selected){
+            this.selected=selected;
+        }
+
+
+
+        public boolean isSelected(){ return selected;}
+
+        public boolean isInList(int i) {
+            return (idx[i]>=0);
+        }
+
+    }
+
+    static ImageFeature constructTemplateFP(List<ImageFeature> tIFs, float[] weights, int tNum) {
+        //calculate ratios
+        //float hr = Math.abs(hd)/(Math.abs(hd) + Math.abs(vd));
+        //float vr = Math.abs(vd)/(Math.abs(hd) + Math.abs(vd));
+        //ImageFeature IF1=tIFs.get(0); //horizontal
+        //ImageFeature IF2=tIFs.get(1); //vertical
+
+        float sum=0;
+        for(float f : weights) sum+=f;
+        for(int i=0;i<weights.length;i++) weights[i]=weights[i]/sum;
+
+        List<KeyPoint> kp= new ArrayList<>();//(IF1.getObjectKeypoints().toList());
         Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
-        des.push_back(IF1.getDescriptors());
+        //des.push_back(IF1.getDescriptors());
 
-        List<KeyPoint> kp1 = IF1.getObjectKeypoints().toList();
-        List<KeyPoint> kp2 = IF2.getObjectKeypoints().toList();
-        for (int i=0; i < kp2.size(); i++) {
-            KeyPoint k = kp2.get(i);
-            boolean newFP = true;
-            for (KeyPoint k1 : kp1) {
-                if (k1.pt.x != k.pt.x || k1.pt.y != k.pt.y)
-                    continue;
-                else {
-                    newFP = false;
-                    break;
+        //List<KeyPoint> kp1 = IF1.getObjectKeypoints().toList();
+        //List<KeyPoint> kp2 = IF2.getObjectKeypoints().toList();
+
+        List<List<KeyPoint>> kp_list = new ArrayList();
+        for(int i=0;i<tIFs.size();i++){
+            kp_list.add((tIFs.get(i).getObjectKeypoints().toList()));
+        }
+
+
+        List<KPoint> distKPs=new ArrayList<>(); //distinct key points
+
+        for(int i=0;i<kp_list.size();i++){
+            for(int j=0;j<kp_list.get(i).size();j++){
+                KeyPoint k1= kp_list.get(i).get(j);
+                KPoint tkp=new KPoint(k1.pt.x, k1.pt.y, kp_list.size());
+                tkp.setIdx(i,j);
+                int idx=distKPs.indexOf(tkp);
+                if(idx<0) {
+                    distKPs.add(tkp);
+                }else{
+                    distKPs.get(idx).setIdx(i,j);
                 }
             }
-            if (newFP) {
-                kp.add(k);
-                Mat tMat = IF2.getDescriptors().row(i);
-                des.push_back(tMat);
-            }
-            if (kp.size() >= tNum)
-                break;
         }
+
+        int[] c_list=new int[kp_list.size()];
+        int[] p_list=new int[kp_list.size()];
+        int sum_c=0;
+        //TODO: what if tNum always > kp.size?
+        while( kp.size()<tNum){
+            KeyPoint k;
+            float max_deficit=0;
+            int candidate_idx=-1;
+            for(int i=0;i<c_list.length;i++){
+                int n_sum= (sum_c==0)? tNum : sum_c;
+                //System.out.printf("%d:%.02f,%.02f\n",i,weights[i],(float)c_list[i]/n_sum);
+
+                float deficit=weights[i]-(float)c_list[i]/n_sum;
+                //add the feature points of list with largest deficit when it still has candidates
+                if(deficit>max_deficit && kp_list.get(i).size() > p_list[i]) {
+                    max_deficit=deficit;
+                    candidate_idx=i;
+                }
+            }
+
+            if (candidate_idx==-1) break;//can't add candidate anymore
+
+            k=kp_list.get(candidate_idx).get(p_list[candidate_idx]++);
+
+            KPoint kkp=new KPoint(k.pt.x,k.pt.y);
+            int idx=distKPs.indexOf(kkp);
+            if(idx<0) System.out.println("sth is wrong, idx<0");
+            kkp=distKPs.get(idx);
+            if(kkp.isSelected()){
+                continue;
+            }
+
+            for(int i=0;i<c_list.length;i++){
+                if(kkp.isInList(i)){
+                    c_list[i]++;
+                    sum_c++;
+                }
+            }
+            kkp.setSelected(true);
+
+            kp.add(k);
+
+            Mat tMat=null;
+            for(int i=0;i<kp_list.size();i++){
+                if(kkp.isInList(i)){
+                    int rowidx=kkp.getIdx(i);
+                    tMat=tIFs.get(i).getDescriptors().row(rowidx);
+                    break;
+                    //System.out.printf("kp_idx:%d,row_idx:%d\n",i,rowidx);
+                }
+            }
+            /*if(kkp.isInFirst()){
+                tMat = IF1.getDescriptors().row(kkp.getIdx1());
+            }else if(kkp.isInSecond()){
+                tMat = IF2.getDescriptors().row(kkp.getIdx2());
+            }else{System.out.println("sth. is wrong, not in 1 or 2");}*/
+            des.push_back(tMat);
+            //System.out.println(des.size().toString());
+            //System.out.printf("d1:%.02f, d2:%.02f, p1:%d,p2:%d,kp:%d\n",deficit1,deficit2,p1,p2,kp.size());
+        }
+
         MatOfKeyPoint tKP = new MatOfKeyPoint();
         tKP.fromList(kp);
-        return new ImageFeature(tKP, des, IF1.getDescriptorType());
+        //System.out.printf("construct FP size: %d, %s\n", kp.size(),des.size().toString());
+        return new ImageFeature(tKP, des, tIFs.get(0).getDescriptorType());
     }
 
     //added by bo
