@@ -989,6 +989,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         for(float f : weights) sum+=f;
         for(int i=0;i<weights.length;i++) weights[i]=weights[i]/sum;
 
+        for (int i=0; i<weights.length; i++)
+            if (weights[i]==1f)
+                return tIFs.get(i);
+
         List<KeyPoint> kp= new ArrayList<>();//(IF1.getObjectKeypoints().toList());
         Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
         //des.push_back(IF1.getDescriptors());
