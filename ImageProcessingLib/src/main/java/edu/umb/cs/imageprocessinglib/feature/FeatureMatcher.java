@@ -179,6 +179,10 @@ public class FeatureMatcher {
             symMatches = ransacMatches;
         }
 
+        //the number of matches is too few to do linear regression
+        if (symMatches.total() <= 2 )
+            return symMatches;
+
         SimpleRegression rx = new SimpleRegression();
         SimpleRegression ry = new SimpleRegression();
 

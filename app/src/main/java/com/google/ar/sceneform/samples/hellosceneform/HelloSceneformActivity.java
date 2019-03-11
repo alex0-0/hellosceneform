@@ -1025,7 +1025,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         int[] c_list=new int[kp_list.size()];
         int[] p_list=new int[kp_list.size()];
         int sum_c=0;
-        //TODO: what if tNum always > kp.size?
         while( kp.size()<tNum){
             KeyPoint k;
             float max_deficit=0;
