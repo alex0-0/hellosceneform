@@ -162,8 +162,8 @@ public class FeatureMatcher {
         m.knnMatch(templateDescriptor, queryDescriptor, matches1, knnNum);
         m.knnMatch(queryDescriptor, templateDescriptor, matches2, 2);      //matches will is used later
 
-        ratioTest(matches1);
-        ratioTest(matches2);
+//        ratioTest(matches1);
+//        ratioTest(matches2);
 
         MatOfDMatch symMatches = symmetryTest(matches1, matches2);
 //        MatOfDMatch symMatches = new MatOfDMatch();//symmetryTest(matches1, matches2);
