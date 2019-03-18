@@ -677,7 +677,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     }
 
     static int kTemplateFPNum = 100;
-    static int kDisThd = 300;
+    static int kDisThd = 400;
     private void record(Bitmap img, List<Recognition> recognitions) {
         runOnUiThread(()->{
             FragmentManager fm=getFragmentManager();
@@ -991,7 +991,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
         for (int i=0; i<weights.length; i++)
             if (weights[i]==1f)
-                return tIFs.get(i);
+                return (tIFs.get(i).getSize()>tNum)? tIFs.get(i).subImageFeature(0, tNum) : tIFs.get(i);
 
         List<KeyPoint> kp= new ArrayList<>();//(IF1.getObjectKeypoints().toList());
         Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
