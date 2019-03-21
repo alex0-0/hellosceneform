@@ -27,6 +27,8 @@ import java.util.List;
 public class MyArFragment extends ArFragment {
     private HelloSceneformActivity activity=null;
     private boolean configured=false;
+    private long timeStamp = 0;
+    static private long kInterval = 500;
 
     FrameListener listener = null;
 
@@ -90,8 +92,9 @@ public class MyArFragment extends ArFragment {
         super.onUpdate(frameTime);
 
         Frame arFrame = getArSceneView().getArFrame();
-        if (listener != null) {
+        if (listener != null && System.currentTimeMillis() - timeStamp > kInterval) {
             listener.onFrame(frameTime, arFrame);
+            timeStamp = System.currentTimeMillis();
         }
 
 
