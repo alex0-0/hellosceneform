@@ -597,6 +597,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 //        trackingOverlay.postInvalidate();
         //System.arraycopy(originalLuminance, 0, luminanceCopy, 0, originalLuminance.length);
 
+        //stop the background thread when program is halted
+        if (System.currentTimeMillis() - timeStamp > kInterval && handler != null) {
+            timeStamp = System.currentTimeMillis();
+        } else return;
+
         final Canvas canvas = new Canvas(croppedBitmap);
 //        final Canvas canvas = new Canvas(rgbFrameBitmap);
         canvas.drawBitmap(bitmap, frameToCropTransform, null);
