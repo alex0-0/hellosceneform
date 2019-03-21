@@ -181,6 +181,7 @@ public class MyUtils {
     }
 
     static Bitmap imageToBitmap(Image image){
+        long start = System.currentTimeMillis();
         byte[] nv21;
         // Get the three planes.
         ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
@@ -204,12 +205,15 @@ public class MyUtils {
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         YuvImage yuv = new YuvImage(nv21, ImageFormat.NV21, width, height, null);
-        yuv.compressToJpeg(new Rect(0, 0, width, height), 100, out);
+        yuv.compressToJpeg(new Rect(0, 0, width, height), 50, out);
         byte[] byteArray = out.toByteArray();
         Bitmap bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.length);
+        long end = System.currentTimeMillis();
+        Log.d(MyUtils.class.getName(), "convention from Image to Bitmap:"+(end-start));
 
 
 
+//        long start = System.currentTimeMillis();
 //        String str=String.format("Image, width:%d,height:%d",image.getWidth(),image.getHeight());
 //        Log.d("myTag",str);
 ////        if(!opencvLoaded) return null;
@@ -222,6 +226,8 @@ public class MyUtils {
 //        Utils.matToBitmap(mat,bitmap);
 //        str=String.format("Bitmap, width:%d,height:%d",bitmap.getWidth(),bitmap.getHeight());
 //        Log.d("myTag",str);
+//        long end = System.currentTimeMillis();
+//        Log.d(MyUtils.class.getName(), "convention from Image to Bitmap:"+(end-start));
 
 
 
