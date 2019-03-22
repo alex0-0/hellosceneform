@@ -573,6 +573,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 });
     }
 
+    long timeStamp = 0;
+    static private long kInterval = 500;
+
     void processImage(Bitmap bitmap) {
         if(bitmap==null) return;
 
