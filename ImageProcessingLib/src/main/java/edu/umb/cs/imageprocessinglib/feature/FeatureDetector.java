@@ -125,9 +125,8 @@ public class FeatureDetector {
     }
 
     /**
-     * @param img
-     * @param keyPoints
-     * @param descriptors
+     * @param keyPoints         original template key points
+     * @param descriptors       original template descriptors
      * @param type              the descriptor type
      * @param num               the number limit for returning key points
      * @param disThd            distance threshold using for filtering unqualified matches
@@ -135,7 +134,6 @@ public class FeatureDetector {
      * @return boolean indicates whether the method is done without problem
      */
     public boolean extractRobustFeatures(
-            Mat img,
             List<Mat> distortedImages,
             MatOfKeyPoint keyPoints,
             Mat descriptors,
@@ -152,9 +150,9 @@ public class FeatureDetector {
 
 //        List<HashSet<Integer>> tracker = trackFeatures(img, distortedImages, kp, des, listOfKeyPoints, listOfDescriptors, listOfMatches, type);
 
-        MatOfKeyPoint kp = new MatOfKeyPoint();
+        MatOfKeyPoint kp = keyPoints;
         Mat des = new Mat();
-        List<List<Integer>> fpTrack = analyzeFPsInImages(img, distortedImages, kp, des, type, disThd);
+        List<List<Integer>> fpTrack = analyzeFPsInImages(distortedImages, descriptors, type, disThd);
         List<Integer> sizes = fpTrack.stream().map(o->o.size()).collect(Collectors.toList());
         for (int i : sizes) {
             if (i < num)
@@ -165,9 +163,10 @@ public class FeatureDetector {
         List<KeyPoint> kpList = new ArrayList<>();
         for (int i : candidates) {
             kpList.add(tKP.get(i));
-            descriptors.push_back(des.row(i));
+            des.push_back(descriptors.row(i));
         }
         keyPoints.fromList(kpList);
+        des.copyTo(descriptors);
 
 //        if (type == DescriptorType.SURF)
 //            surf.compute(img, keyPoints, descriptors);
@@ -242,12 +241,9 @@ print out matching results
     }
 
     //return a list of lists containing the index of matched feature points
-    public List<List<Integer>> analyzeFPsInImages(Mat tImg, List<Mat> images, MatOfKeyPoint tKPs, Mat tDes, DescriptorType type, int disThd) {
+    public List<List<Integer>> analyzeFPsInImages(List<Mat> images, Mat tDes, DescriptorType type, int disThd) {
 
         List<List<Integer>> ret = new ArrayList<>();
-
-        //calculate original image's key points and descriptors
-        extractFeatures(tImg, tKPs, tDes, type);
 
         for (Mat img : images) {
             MatOfKeyPoint k = new MatOfKeyPoint();

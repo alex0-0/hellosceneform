@@ -718,24 +718,60 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
                     + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
 
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, -0.05f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+            long startTime, endTime;
+            startTime = System.currentTimeMillis();
+            ImageFeature tIF = ImageProcessor.extractFeatures(tMat);
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("extract tIF time:%d", endTime-startTime));
+
+
+//            startTime = System.currentTimeMillis();
+//            ImageFeature i1 = ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+//                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null);
+//            endTime = System.currentTimeMillis();
+//            Log.d("ar_timer", String.format("first extraction time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left", //i1);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("left saving time:%d", endTime-startTime));
+//            Log.d("ar_timer", String.format("first saving time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",// i2);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("right saving time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",//i3);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("bottom saving time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",//i4);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("top saving time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up", //i5);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.scaleImage(tMat, 0.05f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("scale up saving time:%d", endTime-startTime));
+            startTime = System.currentTimeMillis();
+
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",//i6);
+                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.scaleImage(tMat, -0.05f, 10),
+                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
+            endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("scale down saving time:%d", endTime-startTime));
         }
         MyUtils.writeToFile(dataFileName, data.toString(), this);
         runOnUiThread(()->{
