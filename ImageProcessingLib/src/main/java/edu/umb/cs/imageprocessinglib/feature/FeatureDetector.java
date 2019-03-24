@@ -1,5 +1,7 @@
 package edu.umb.cs.imageprocessinglib.feature;
 
+import android.util.Log;
+
 import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import edu.umb.cs.imageprocessinglib.util.ImageUtil;
 import org.opencv.core.DMatch;
@@ -9,16 +11,10 @@ import org.opencv.core.MatOfDMatch;
 import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
-import org.opencv.core.Size;
-import org.opencv.features2d.FastFeatureDetector;
 import org.opencv.features2d.ORB;
-import org.opencv.imgproc.Imgproc;
-import org.opencv.utils.Converters;
 import org.opencv.xfeatures2d.SURF;
 
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Created by alex on 1/27/18.
@@ -153,7 +149,10 @@ public class FeatureDetector {
         MatOfKeyPoint kp = keyPoints;
         Mat des = new Mat();
         List<List<Integer>> fpTrack = analyzeFPsInImages(distortedImages, descriptors, type, disThd);
-        List<Integer> sizes = fpTrack.stream().map(o->o.size()).collect(Collectors.toList());
+        List<Integer> sizes = new ArrayList<>();
+        for (List<Integer> t : fpTrack)
+            sizes.add(t.size());
+//        List<Integer> sizes = fpTrack.stream().map(o->o.size()).collect(Collectors.toList());
         for (int i : sizes) {
             if (i < num)
                 num = i/10*10;
@@ -275,11 +274,15 @@ print out matching results
                 if (minDisMatch != null)
                     mL.add(minDisMatch);
             }
-            ret.add(mL.stream().map(o->o.trainIdx).collect(Collectors.toList()));
+            List<Integer> tIdxs = new ArrayList<>();
+            for (DMatch o : mL) {
+                tIdxs.add(o.trainIdx);
+            }
+            ret.add(tIdxs);
+//            ret.add(mL.stream().map(o->o.trainIdx).collect(Collectors.toList()));
         }
         return ret;
     }
-
     /**
      * Given a list of candidates, which is represent by a range from 0 to a specific number, this method finds out those
      * which can maximize the minimum counter value.
@@ -319,6 +322,8 @@ print out matching results
             }
             int max = 0;
             int maxKey = -1;
+            //TODO:tens of times cost on first calling
+            long s = System.currentTimeMillis();
             for (int i : tracker.keySet()) {
                 int c = 0;  //count how many mins can get increased if this candidate is selected
                 Set<Integer> ts = tracker.get(i);
@@ -331,6 +336,8 @@ print out matching results
                     maxKey = i;
                 }
             }
+            long e = System.currentTimeMillis();
+            Log.d("ar_timer", "maxmin loop time:"+(e-s));
 
             //no more optimization can be done, comment this condition if you wanna keep adding new candidate
             if (maxKey == -1)
