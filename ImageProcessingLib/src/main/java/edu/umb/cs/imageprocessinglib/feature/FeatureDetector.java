@@ -295,18 +295,36 @@ print out matching results
     List<Integer> maxMin(List<List<Integer>> input, int num, List<Integer> minTracker) {
         List<Integer> ret = new ArrayList<>();
         List<Integer> counters = new ArrayList<>();
-        Map<Integer, Set<Integer>> tracker = new HashMap<>();   //using set rather than list just in case the input is not properly preprocessed
+        HashMap<Integer, int[]> tracker = new HashMap<>();   //using set rather than list just in case the input is not properly preprocessed
 
+        HashMap<Integer, ArrayList<Integer>> tempHS=new HashMap<Integer, ArrayList<Integer>>();
         //record input into a hashmap, which use candidate as key and a list containing matched target as value
         for (int i=0; i < input.size(); i++) {
             for (int k=0; k < input.get(i).size(); k++) {
                 int key = input.get(i).get(k);
+
+                if(tempHS.get(key)==null){
+                    tempHS.put(key,new ArrayList());
+                }
+                tempHS.get(key).add(i);
+                /*
                 if (tracker.get(key) == null) {
                     tracker.put(key, new HashSet<>());
                 }
                 //for every candidates, use a list to record its matched target
-                tracker.get(key).add(i);
+                tracker.get(key).add(i);*/
             }
+        }
+
+        Iterator it = tempHS.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry)it.next();
+            Integer key=(Integer)pair.getKey();
+            ArrayList al=(ArrayList)pair.getValue();
+            int[] temp_array=new int[al.size()];
+            for(int i=0;i<al.size();i++) temp_array[i]=(Integer)al.get(i);
+            tracker.put(key,temp_array);
+            it.remove(); // avoids a ConcurrentModificationException
         }
 
         for (int i=0; i < input.size(); i++)
@@ -324,14 +342,31 @@ print out matching results
             int maxKey = -1;
             //TODO:tens of times cost on first calling
             long s = System.currentTimeMillis();
-            int min_start=0;
+            int nloop=0;
+            long t1=0,t2=0,t3=0;
+            int[] mins_array=new int[mins.size()];
+            for(int i=0;i<mins.size();i++) mins_array[i]=mins.get(i);
+
 
             for (int i : tracker.keySet()) {
                 int c = 0;  //count how many mins can get increased if this candidate is selected
-                Set<Integer> ts = tracker.get(i);
+                long t1s=System.currentTimeMillis();
+                int[] ts = tracker.get(i);
+                long t1e=System.currentTimeMillis();
+                t1+=t1e-t1s;
+                int min_start=0;
+                long t3s=System.currentTimeMillis();
+
                 for(int ii:ts){
+
                     for (int j=min_start;j<mins.size();j++) {
-                        int m=mins.get(j);
+                        long t2s=System.currentTimeMillis();
+
+                        int m=mins_array[j];//mins.get(j);
+                        long t2e=System.currentTimeMillis();
+                        t2+=t2e-t2s;
+
+                        nloop++;
                         if(m<ii) continue;
                         if(m>ii){
                             min_start=j;
@@ -350,6 +385,9 @@ print out matching results
                         c++;
                 }
                 */
+                long t3e=System.currentTimeMillis();
+
+                t3+=t3e-t3s;
                 if (c > max) {
                     max = c;
                     maxKey = i;
@@ -357,9 +395,9 @@ print out matching results
 
             }
 
-
             long e = System.currentTimeMillis();
-            Log.d("ar_timer", "maxmin loop time:"+(e-s));
+            Log.d("ar_timer", "maxmin loop time:"+(e-s)+", nloop:"+nloop);
+            Log.d("ar_timer", "t1:"+t1+", t2:"+t2+", t3:"+t3);
 
             //no more optimization can be done, comment this condition if you wanna keep adding new candidate
             if (maxKey == -1)
