@@ -91,6 +91,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.ObjectDetector;
@@ -333,6 +334,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
                 }
                 else{
+                    rs=null;//delete previous data
                     onRecord = true;
                     runOnUiThread(()-> {
                         btn.setTag("Place VO");
@@ -694,100 +696,84 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         });
 
         setAngle();
-        FeatureStorage fs = new FeatureStorage();
+//        FeatureStorage fs = new FeatureStorage();
         Mat mat = new Mat();
         Utils.bitmapToMat(img, mat);
         StringBuilder data = new StringBuilder();
         data.append(refRD);
         data.append(" " + img.getWidth() + " " + img.getHeight()+" " + VO_dist);
         String dirPath = getFilesDir().getPath();
+        AtomicInteger c = new AtomicInteger(0); //used to count the completed threads
+
         for (Recognition r : recognitions) {
             BoxPosition location = r.getLocation();
             Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
             Mat tMat = new Mat(mat, roi);
 
-            //TODO:figure out if the orientation of the original image influence the final matching
-            //At present the image is counter-clock rotated 90 degrees
-//            List<Mat> leftImgs = ImageProcessor.changeToLeftPerspective(tMat, 5f, 10);
-//            for (Mat i : leftImgs) {
-//                Bitmap bitmap=Bitmap.createBitmap(i.cols(),  i.rows(), Bitmap.Config.ARGB_8888);
-//                Utils.matToBitmap(i,bitmap);
-//                int k = 0;
-//            }
-
             data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
                     + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
 
-            long startTime, endTime;
-            startTime = System.currentTimeMillis();
-            ImageFeature tIF = ImageProcessor.extractFeatures(tMat);
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("extract tIF time:%d", endTime-startTime));
-
-
-//            startTime = System.currentTimeMillis();
-//            ImageFeature i1 = ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
-//                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null);
-//            endTime = System.currentTimeMillis();
-//            Log.d("ar_timer", String.format("first extraction time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left", //i1);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("left saving time:%d", endTime-startTime));
-//            Log.d("ar_timer", String.format("first saving time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",// i2);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("right saving time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",//i3);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("bottom saving time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",//i4);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("top saving time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up", //i5);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.scaleImage(tMat, 0.05f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("scale up saving time:%d", endTime-startTime));
-            startTime = System.currentTimeMillis();
-
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",//i6);
-                    ImageProcessor.extractRobustFeatures(tIF, ImageProcessor.scaleImage(tMat, -0.05f, 10),
-                            (int)(1.2*kTemplateFPNum), kDisThd, DescriptorType.ORB, null));
-            endTime = System.currentTimeMillis();
-            Log.d("ar_timer", String.format("scale down saving time:%d", endTime-startTime));
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
+            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
+                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, -0.05f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
         }
         MyUtils.writeToFile(dataFileName, data.toString(), this);
-        runOnUiThread(()->{
-            Toast.makeText(getApplicationContext(), "Image features saved", Toast.LENGTH_SHORT).show();
-            FragmentManager fm=getFragmentManager();
-            SavingFeatureDialog sf=(SavingFeatureDialog)fm.findFragmentByTag("sf_dialog");
-            if(sf!=null) sf.dismiss();;
 
-        });
+        int count = 3*recognitions.size();
+        Handler handler = new Handler();
+        int kInterval = 2;
+
+        Runnable statusCheck = new Runnable() {
+            @Override
+            public void run() {
+                if (c.get() >= count) {
+                    runOnUiThread(()->{
+                        Toast.makeText(getApplicationContext(), "Image features saved", Toast.LENGTH_SHORT).show();
+                        FragmentManager fm=getFragmentManager();
+                        SavingFeatureDialog sf=(SavingFeatureDialog)fm.findFragmentByTag("sf_dialog");
+                        if(sf!=null) sf.dismiss();;
+                    });
+                }
+                else handler.postDelayed(this, kInterval);
+            }
+        };
+        statusCheck.run();
+
         onRecord = false;
-
     }
+
+    static float kConThd = 0.6f;
 
     private void retrieve(Bitmap img, List<Recognition> recognitions) {
 
-        Log.d("match strings","enter retrieve method");
+        Log.d("match_strings","enter retrieve method");
 
         double mr_th=0.15; //matching ratio threshold
         boolean match=false;
@@ -807,12 +793,13 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             sb.append("angle difference larger than 90 degree");
         else {
             int count_r=0;
-            Log.d("match strings","recognized "+Integer.toString(recognitions.size())+" items");
+            Log.d("match_strings","recognized "+Integer.toString(recognitions.size())+" items");
 
             MatOfDMatch m = null;
             ImageFeature qmIF = null;
             ImageFeature tmIF = null;
             for (Recognition r : recognitions) {
+                if (r.getConfidence()<kConThd) continue;
                 double mr=0; //temporarily save the matching ratio
                 if (recs.contains(r.getTitle())) {
                     BoxPosition location = r.getLocation();
@@ -882,10 +869,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         }
                         float dx = (float)(imgSize.height/2 -(tmax_x+tmin_x)/2);
                         float dy = (float)(imgSize.width/2 -(tmax_y+tmin_y)/2);
-                        Log.d("match string",String.format("dx:%.02f,dy:%.02f",dx,dy));
+                        Log.d("match_strings",String.format("dx:%.02f,dy:%.02f",dx,dy));
                         float r_scale = (float)((tmax_x-tmin_x) / (qmax_x-qmin_x) + (tmax_y-tmin_y) / (qmax_y-qmin_y)) / 2;
-                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",(tmax_x-tmin_x) / (qmax_x-qmin_x), (tmax_y-tmin_y) / (qmax_y-qmin_y),r_scale));
-                        Log.d("match string",String.format("qmin:(%.02f,%.02f)\tqmax:(%.02f,%.02f)\ttmin(%.02f,%.02f)\ttmax(%.02f,%.02f)",
+                        Log.d("match_strings",String.format("Scale:%.02f,%.02f\t%.02f",(tmax_x-tmin_x) / (qmax_x-qmin_x), (tmax_y-tmin_y) / (qmax_y-qmin_y),r_scale));
+                        Log.d("match_strings",String.format("qmin:(%.02f,%.02f)\tqmax:(%.02f,%.02f)\ttmin(%.02f,%.02f)\ttmax(%.02f,%.02f)",
                                 qmin_x, qmin_y, qmax_x, qmax_y, tmin_x, tmin_y, tmax_x, tmax_y));
                         float r_center_x = (float)(qmax_x+qmin_x) / 2;
                         float r_center_y = (float)(qmax_y+qmin_y) / 2;
@@ -894,15 +881,15 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
 //                        float img_center_y = (float) imgSize.width / 2;
 //                        float img_center_x = (float) imgSize.height / 2;
-//                        Log.d("match string",String.format("center.x:%.02f,center.y:%.02f",img_center_x,img_center_y));
+//                        Log.d("match_strings",String.format("center.x:%.02f,center.y:%.02f",img_center_x,img_center_y));
 //
 //                        float box_center_x = bp.getLeft() + bp.getWidth() / 2;
 //                        float box_center_y = bp.getTop() + bp.getHeight() / 2;
 //                        float dx = img_center_x - box_center_x;
 //                        float dy = img_center_y - box_center_y;
-//                        Log.d("match string",String.format("dx:%.02f,dy:%.02f",dx,dy));
+//                        Log.d("match_strings",String.format("dx:%.02f,dy:%.02f",dx,dy));
 //                        float r_scale = (bp.getWidth() / location.getWidth() + bp.getHeight() / location.getHeight()) / 2;
-//                        Log.d("match string",String.format("Scale:%.02f,%.02f\t%.02f",bp.getWidth() / location.getWidth(), bp.getHeight() / location.getHeight(),r_scale));
+//                        Log.d("match_strings",String.format("Scale:%.02f,%.02f\t%.02f",bp.getWidth() / location.getWidth(), bp.getHeight() / location.getHeight(),r_scale));
 //
 //                        float r_center_x = location.getLeft() + location.getWidth() / 2;
 //                        float r_center_y = location.getTop() + location.getHeight() / 2;
@@ -910,24 +897,23 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         vo_x = r_center_x + dx * r_scale;
                         vo_y = r_center_y + dy * r_scale;
                         scale = r_scale;
-                        //count_r++;
+                        count_r++;
                     }
                 }
             }
-            /*
             if(match) {
                 vo_x = vo_x / count_r;
                 vo_y = vo_y / count_r;
                 scale= scale / count_r;
-            }*/
+            }
         }
-        Log.d("match strings",sb.toString());
+        Log.d("match_strings",sb.toString());
         if(match) {
 
             float finalScale = scale;
             float finalVo_x = vo_x;
             float finalVo_y = vo_y;
-            Log.d("match strings","scale:"+Float.toString(finalScale)+" "+Float.toString(finalVo_x)+" "+Float.toString(finalVo_y));
+            Log.d("match_strings","scale:"+Float.toString(finalScale)+" "+Float.toString(finalVo_x)+" "+Float.toString(finalVo_y));
 
 
             runOnUiThread(() -> {
@@ -946,8 +932,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 float x,y,z;
                 float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
                 float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
-                Log.d("match string",String.format("width:%.02f,height:%.02f",width, height));
-                Log.d("match string","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
+                Log.d("match_strings",String.format("width:%.02f,height:%.02f",width, height));
+                Log.d("match_strings","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
                 float v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
                 float v_dist_center= (float)Math.sqrt((finalVo_x -width/2)*(finalVo_x -width/2)+(finalVo_y -height/2)*(finalVo_y -height/2));
                 float v_angle=(float)Math.atan(v_dist_center/v_dist);
@@ -958,7 +944,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 z = -v_dist*dist_to_pixel;
                 x= (finalVo_x-width/2)*dist_to_pixel;
                 y= (finalVo_y-height/2)*dist_to_pixel;
-                Log.d("match string",String.format("before placeAndy:%.02f,%.02f,%.02f",x,y,z));
+                Log.d("match_strings",String.format("before placeAndy:%.02f,%.02f,%.02f",x,y,z));
+                //prevent unrealistic cases
+                if (Math.abs(x*y) > 1) return;
                 placeAndy(x, y, z);
                 onRetrieve=false;
 
@@ -1361,13 +1349,15 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     @Override
     public synchronized void onPause() {
 
-        handlerThread.quitSafely();
+//        handlerThread.quitSafely();
+        handlerThread.quit();
         try {
             handlerThread.join();
             handlerThread = null;
             handler = null;
         } catch (final InterruptedException e) {
 //            LOGGER.e(e, "Exception!");
+           Log.e(TAG, "Can't stop handler thread");
         }
         arFragment.onPause();
 
