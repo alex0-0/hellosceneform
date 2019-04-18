@@ -718,6 +718,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
                         ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
                                 kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
                 fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",
                         ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
                                 kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
@@ -725,9 +729,13 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             }).start();
             new Thread(() -> {
                 FeatureStorage fs = new FeatureStorage();
-            fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
-                    ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
-                            kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
                 fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
                         ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
                                 kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
@@ -738,15 +746,19 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up",
                         ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
                                 kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                c.getAndIncrement();
+            }).start();
+            new Thread(() -> {
+                FeatureStorage fs = new FeatureStorage();
                 fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, -0.05f, 10),
+                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, -0.05f, 10),
                                 kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
                 c.getAndIncrement();
             }).start();
         }
         MyUtils.writeToFile(dataFileName, data.toString(), this);
 
-        int count = 3*recognitions.size();
+        int count = 6*recognitions.size();
         Handler handler = new Handler();
         int kInterval = 2;
 
