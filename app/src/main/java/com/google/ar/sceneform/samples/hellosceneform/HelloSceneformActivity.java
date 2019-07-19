@@ -228,6 +228,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
                 //TODO: is the conversion done in correct way?
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
+
                 bitmap=MyUtils.imageToBitmap(img);
 
                 //added by bo to scale down the image
@@ -237,7 +238,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 img.close();
                 //if(bitmap!=null) setImage(bitmap);
                 //else return;
-            }catch(Exception e){System.out.println("myTag"+e); return;}
+            }
+            catch(Exception e){
+                Log.e(TAG,"myTag"+e);
+                return;
+            }
 
 //            if(detector==null) initTF(bitmap);
             if(objectDetector==null) initTF(bitmap);
@@ -837,8 +842,14 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                             ifs.add(ts.get(5));
                         else ifs.add(ts.get(4));
 
+                        long startTime = System.currentTimeMillis();
+
+                        Log.d("video_pre", String.format("hd:%.2f,vd:%.2f,scale:%.2f", hd, vd, area_ratio-1));
                         ImageFeature tIF = constructTemplateFP(ifs, new float[]{Math.abs(hd)/45, Math.abs(vd)/45, Math.abs(area_ratio-1)}, kTemplateFPNum);
-                        MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 300, 20);
+                        MatOfDMatch matches = ImageProcessor.matchWithRegression(qIF, tIF, 5, 400, 20);
+
+                        long endTime = System.currentTimeMillis();
+                        Log.d("ar_timer", String.format("matching time:%d", endTime-startTime));
 
                         double tmr = (double) matches.total() / tIF.getSize();
                         sb.append(r.getTitle() + " " + tmr + ",");
@@ -850,6 +861,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                             tmIF = tIF;
                         }
                     }
+                    Log.d("video_pre", String.format("matching ratio:%.2f", mr));
 
 
                     //derive the position of the VO
@@ -906,14 +918,16 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 //                        float r_center_x = location.getLeft() + location.getWidth() / 2;
 //                        float r_center_y = location.getTop() + location.getHeight() / 2;
 
-                        vo_x = r_center_x + dx * r_scale;
-                        vo_y = r_center_y + dy * r_scale;
-                        scale = r_scale;
+                        vo_x += r_center_x + dx / r_scale;
+                        vo_y += r_center_y + dy / r_scale;
+                        //vo_x += r_center_x + dx * r_scale;
+                        //vo_y += r_center_y + dy * r_scale;
+                        scale += r_scale;
                         count_r++;
                     }
                 }
             }
-            if(match) {
+            if(match) {//use average value for multiple recognitions
                 vo_x = vo_x / count_r;
                 vo_y = vo_y / count_r;
                 scale= scale / count_r;
@@ -946,11 +960,12 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
                 Log.d("match_strings",String.format("width:%.02f,height:%.02f",width, height));
                 Log.d("match_strings","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
+                //TODO:how about adding v_dist_center_y? Why their value varied so much
                 float v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
                 float v_dist_center= (float)Math.sqrt((finalVo_x -width/2)*(finalVo_x -width/2)+(finalVo_y -height/2)*(finalVo_y -height/2));
                 float v_angle=(float)Math.atan(v_dist_center/v_dist);
-                float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
-                float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
+//                float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
+//                float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
 
                 float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale * Math.cos(v_angle) / v_dist);
                 z = -v_dist*dist_to_pixel;
