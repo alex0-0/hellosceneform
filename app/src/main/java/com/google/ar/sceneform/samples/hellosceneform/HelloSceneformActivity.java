@@ -918,10 +918,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 //                        float r_center_x = location.getLeft() + location.getWidth() / 2;
 //                        float r_center_y = location.getTop() + location.getHeight() / 2;
 
-                        vo_x += r_center_x + dx / r_scale;
-                        vo_y += r_center_y + dy / r_scale;
-                        //vo_x += r_center_x + dx * r_scale;
-                        //vo_y += r_center_y + dy * r_scale;
+                        vo_x += r_center_x + dx * r_scale;
+                        vo_y += r_center_y + dy * r_scale;
                         scale += r_scale;
                         count_r++;
                     }
@@ -930,6 +928,14 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             if(match) {//use average value for multiple recognitions
                 vo_x = vo_x / count_r;
                 vo_y = vo_y / count_r;
+                double radiant_v = vd/180*Math.PI;
+                double radiant_h = hd/180*Math.PI;
+                vo_y = vo_y/(float)Math.cos(Math.abs(radiant_v));
+                vo_x = vo_x/(float)Math.cos(Math.abs(radiant_h));
+                //if (vd<0) vo_y = vo_y/(float)Math.cos(-radiant_v);
+                //else vo_y = vo_y*(float)Math.cos(radiant_v);
+                //if (hd<0) vo_x = vo_x/(float)Math.cos(-radiant_h);
+                //else vo_x = vo_x*(float)Math.cos(radiant_h);
                 scale= scale / count_r;
             }
         }
