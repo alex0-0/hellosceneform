@@ -893,6 +893,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         }
                         float dx = (float)(imgSize.height/2 -(tmax_x+tmin_x)/2);
                         float dy = (float)(imgSize.width/2 -(tmax_y+tmin_y)/2);
+                        double radiant_v = vd/180*Math.PI;
+                        double radiant_h = hd/180*Math.PI;
+                        dy = dy/(float)Math.cos(Math.abs(radiant_v));
+                        dx = dx/(float)Math.cos(Math.abs(radiant_h));
                         Log.d("match_strings",String.format("dx:%.02f,dy:%.02f",dx,dy));
                         float r_scale = (float)((tmax_x-tmin_x) / (qmax_x-qmin_x) + (tmax_y-tmin_y) / (qmax_y-qmin_y)) / 2;
                         Log.d("match_strings",String.format("Scale:%.02f,%.02f\t%.02f",(tmax_x-tmin_x) / (qmax_x-qmin_x), (tmax_y-tmin_y) / (qmax_y-qmin_y),r_scale));
@@ -928,10 +932,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             if(match) {//use average value for multiple recognitions
                 vo_x = vo_x / count_r;
                 vo_y = vo_y / count_r;
-                double radiant_v = vd/180*Math.PI;
-                double radiant_h = hd/180*Math.PI;
-                vo_y = vo_y/(float)Math.cos(Math.abs(radiant_v));
-                vo_x = vo_x/(float)Math.cos(Math.abs(radiant_h));
                 //if (vd<0) vo_y = vo_y/(float)Math.cos(-radiant_v);
                 //else vo_y = vo_y*(float)Math.cos(radiant_v);
                 //if (hd<0) vo_x = vo_x/(float)Math.cos(-radiant_h);
