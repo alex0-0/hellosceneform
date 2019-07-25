@@ -119,8 +119,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
     private float v_viewangle=60, h_viewangle=48;
 
-    private float VO_dist=0, VO_dist_for_viewer=0;
-
+    private float VO_dist=0, VO_dist_for_viewer=0, v_dist=0;
 
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
@@ -245,7 +244,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             }
 
 //            if(detector==null) initTF(bitmap);
-            if(objectDetector==null) initTF(bitmap);
+            if(objectDetector==null) {
+                initTF(bitmap);
+                initDistParameters();
+            }
 
             processImage(bitmap);
 
@@ -508,6 +510,17 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             Button btn= findViewById(R.id.retrieve);
             btn.setEnabled(true);
         });
+    }
+
+    void initDistParameters() {
+        float width=previewHeight;
+        float height=previewWidth;
+        float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
+        float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
+        Log.d("match_strings",String.format("width:%.02f,height:%.02f",width, height));
+        Log.d("match_strings","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
+        //TODO:how about adding v_dist_center_y? Why their value varied so much
+        v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
     }
 
     void initTF(Bitmap bitmap) {
@@ -893,10 +906,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         }
                         float dx = (float)(imgSize.height/2 -(tmax_x+tmin_x)/2);
                         float dy = (float)(imgSize.width/2 -(tmax_y+tmin_y)/2);
-                        double radiant_v = vd/180*Math.PI;
-                        double radiant_h = hd/180*Math.PI;
-                        dy = dy/(float)Math.cos(Math.abs(radiant_v));
-                        dx = dx/(float)Math.cos(Math.abs(radiant_h));
                         Log.d("match_strings",String.format("dx:%.02f,dy:%.02f",dx,dy));
                         float r_scale = (float)((tmax_x-tmin_x) / (qmax_x-qmin_x) + (tmax_y-tmin_y) / (qmax_y-qmin_y)) / 2;
                         Log.d("match_strings",String.format("Scale:%.02f,%.02f\t%.02f",(tmax_x-tmin_x) / (qmax_x-qmin_x), (tmax_y-tmin_y) / (qmax_y-qmin_y),r_scale));
@@ -905,7 +914,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         float r_center_x = (float)(qmax_x+qmin_x) / 2;
                         float r_center_y = (float)(qmax_y+qmin_y) / 2;
 
-
+                        double radiant_v = vd/180*Math.PI;
+                        double radiant_h = hd/180*Math.PI;
+                        dy = angleChangeHelper(dy, r_center_y, r_scale, (float)radiant_v);
+                        dx = angleChangeHelper(dx, r_center_x, r_scale, (float)radiant_h);
 
 //                        float img_center_y = (float) imgSize.width / 2;
 //                        float img_center_x = (float) imgSize.height / 2;
@@ -949,8 +961,6 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
 
             runOnUiThread(() -> {
-                TextView tv = findViewById(R.id.mratio);
-                tv.setText(sb.toString());
 
 //                DisplayMetrics displayMetrics = new DisplayMetrics();
 //                getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
@@ -959,20 +969,12 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
                 float width=previewHeight;
                 float height=previewWidth;
-//                float width=imgSize.height;
-//                float height=imgSize.width;
-                float x,y,z;
-                float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
-                float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
-                Log.d("match_strings",String.format("width:%.02f,height:%.02f",width, height));
-                Log.d("match_strings","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
-                //TODO:how about adding v_dist_center_y? Why their value varied so much
-                float v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
                 float v_dist_center= (float)Math.sqrt((finalVo_x -width/2)*(finalVo_x -width/2)+(finalVo_y -height/2)*(finalVo_y -height/2));
                 float v_angle=(float)Math.atan(v_dist_center/v_dist);
 //                float x_angle= (float)Math.atan((finalVo_x -width/2)/v_dist);//x angle of the VO
 //                float y_angle= (float)Math.atan((finalVo_y -height/2)/v_dist);
 
+                float x,y,z;
                 float dist_to_pixel= (float) (VO_dist_for_viewer * finalScale * Math.cos(v_angle) / v_dist);
                 z = -v_dist*dist_to_pixel;
                 x= (finalVo_x-width/2)*dist_to_pixel;
@@ -983,8 +985,22 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 placeAndy(x, y, z);
                 onRetrieve=false;
 
+                TextView tv = findViewById(R.id.mratio);
+                tv.setText(sb.toString() + String.format("(%f,%f,%f)", x, y, z));
             });
         }
+    }
+
+    //theta: the change of the view angle
+    float angleChangeHelper(float d_ro_ori, float d_ro, float scale, float theta){
+       float h_ro = v_dist * scale;
+       double beta = Math.atan(d_ro/h_ro);
+       double alhpa = 90-beta+theta;
+       double l = h_ro / Math.cos(beta);
+       double m = Math.sqrt(d_ro_ori*d_ro_ori+l*l-2*d_ro_ori*l*Math.cos(alhpa));
+       double zeta = Math.acos((m*m+l*l-d_ro_ori*d_ro_ori)/(2*m*l));
+       float dx = (float)Math.tan(zeta-beta)*h_ro+d_ro;
+       return dx;
     }
 
     static class KPoint{
