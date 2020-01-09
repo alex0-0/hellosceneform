@@ -658,7 +658,9 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 //                            Log.d(TAG, "main: rect before transform " + location.toString());
                             cropToFrameTransform.mapRect(location);
                             roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
-                            result.setLocation(new BoxPosition(location.left, location.top, location.width(), location.height()));
+                            //TFLite would output negative position
+                            result.setLocation(new BoxPosition(Math.max(0, location.left), Math.max(0, location.top),
+                                    Math.min(previewWidth - Math.max(0, location.left), location.width()), Math.min(previewHeight - Math.max(0, location.top), location.height())));
                         }
 
                         if (results.size() > 0) {

@@ -13,6 +13,7 @@ import org.opencv.core.Mat;
 import edu.umb.cs.imageprocessinglib.model.BoxPosition;
 import edu.umb.cs.imageprocessinglib.model.Recognition;
 import edu.umb.cs.imageprocessinglib.tensorflow.Classifier;
+import edu.umb.cs.imageprocessinglib.tensorflow.TFLiteObjectDetectionAPIModel;
 import edu.umb.cs.imageprocessinglib.tensorflow.TensorFlowMultiBoxDetector;
 import edu.umb.cs.imageprocessinglib.tensorflow.TensorFlowObjectDetectionAPIModel;
 import edu.umb.cs.imageprocessinglib.tensorflow.TensorFlowYoloDetector;
@@ -30,7 +31,7 @@ public class ObjectDetector {
     // checkpoints.  Optionally use legacy Multibox (trained using an older version of the API)
     // or YOLO.
     public enum DetectorMode {
-        TF_OD_API, MULTIBOX, YOLO;
+        TF_OD_API, MULTIBOX, YOLO, TF_LITE_SSD;
     }
 
     // Configuration values for the prepackaged multibox model.
@@ -58,12 +59,17 @@ public class ObjectDetector {
     private static final String YOLO_OUTPUT_NAMES = "output";
     private static final int YOLO_BLOCK_SIZE = 32;
 
+    private static final int TF_LITE_SSD_INPUT_SIZE = 300;
+    private static final String TF_LITE_SSD_MODEL_FILE = "detect.tflite";
+    private static final String TF_LITE_SSD_LABELS_FILE = TF_OD_API_LABELS_FILE;
+
     // Minimum detection confidence to track a detection.
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
+    private static final float MINIMUM_CONFIDENCE_TF_LITE = 0.6f;
     private static final float MINIMUM_CONFIDENCE_MULTIBOX = 0.1f;
     private static final float MINIMUM_CONFIDENCE_YOLO = 0.25f;
 
-    private static final DetectorMode MODE = DetectorMode.TF_OD_API;
+    private static final DetectorMode MODE = DetectorMode.TF_LITE_SSD;
     private static final boolean MAINTAIN_ASPECT = MODE == DetectorMode.YOLO;
     private Matrix cropToFrameTransform;
     private Matrix frameToCropTransform;
@@ -107,12 +113,21 @@ public class ObjectDetector {
                             MB_OUTPUT_SCORES_NAME);
             cropSize = MB_INPUT_SIZE;
             minConfidence = MINIMUM_CONFIDENCE_MULTIBOX;
-        } else {
+        } else if (MODE == DetectorMode.TF_OD_API) {
             try {
                 detector = TensorFlowObjectDetectionAPIModel.create(
                         assetManager, TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
                 cropSize = TF_OD_API_INPUT_SIZE;
                 minConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+            } catch (final IOException e) {
+                e.printStackTrace();
+            }
+        } else if (MODE == DetectorMode.TF_LITE_SSD) {
+            try {
+                detector = TFLiteObjectDetectionAPIModel.create(
+                        assetManager, TF_LITE_SSD_MODEL_FILE, TF_LITE_SSD_LABELS_FILE, TF_LITE_SSD_INPUT_SIZE, true);
+                cropSize = TF_LITE_SSD_INPUT_SIZE;
+                minConfidence = MINIMUM_CONFIDENCE_TF_LITE;
             } catch (final IOException e) {
                 e.printStackTrace();
             }

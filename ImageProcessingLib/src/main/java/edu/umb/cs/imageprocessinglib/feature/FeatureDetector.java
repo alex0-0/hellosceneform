@@ -157,6 +157,7 @@ public class FeatureDetector {
             if (i < num)
                 num = i/10*10;
         }
+
         List<Integer> candidates = maxMin(fpTrack, num, minTracker);
         List<KeyPoint> tKP = kp.toList();
         List<KeyPoint> kpList = new ArrayList<>();
@@ -341,21 +342,14 @@ print out matching results
             int max = 0;
             int maxKey = -1;
             //TODO:tens of times cost on first calling
-            long s = System.currentTimeMillis();
-            int nloop=0;
-            long t1=0,t2=0,t3=0;
             int[] mins_array=new int[mins.size()];
             for(int i=0;i<mins.size();i++) mins_array[i]=mins.get(i);
 
 
             for (int i : tracker.keySet()) {
                 int c = 0;  //count how many mins can get increased if this candidate is selected
-                long t1s=System.currentTimeMillis();
                 int[] ts = tracker.get(i);
-                long t1e=System.currentTimeMillis();
-                t1+=t1e-t1s;
                 int min_start=0;
-                long t3s=System.currentTimeMillis();
 
                 for(int ii:ts){
 
@@ -364,9 +358,7 @@ print out matching results
 
                         int m=mins_array[j];//mins.get(j);
                         long t2e=System.currentTimeMillis();
-                        t2+=t2e-t2s;
 
-                        nloop++;
                         if(m<ii) continue;
                         if(m>ii){
                             min_start=j;
@@ -385,19 +377,12 @@ print out matching results
                         c++;
                 }
                 */
-                long t3e=System.currentTimeMillis();
-
-                t3+=t3e-t3s;
                 if (c > max) {
                     max = c;
                     maxKey = i;
                 }
 
             }
-
-            long e = System.currentTimeMillis();
-            Log.d("ar_timer", "maxmin loop time:"+(e-s)+", nloop:"+nloop);
-            Log.d("ar_timer", "t1:"+t1+", t2:"+t2+", t3:"+t3);
 
             //no more optimization can be done, comment this condition if you wanna keep adding new candidate
             if (maxKey == -1)
