@@ -17,13 +17,11 @@ package com.google.ar.sceneform.samples.hellosceneform;
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.Fragment;
 import android.app.FragmentManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
-import android.graphics.Point;
 import android.graphics.RectF;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -40,10 +38,9 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.SystemClock;
 import android.support.v7.app.AppCompatActivity;
-import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SizeF;
 import android.view.Display;
 import android.view.Gravity;
@@ -55,7 +52,6 @@ import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -88,6 +84,7 @@ import org.opencv.core.Rect;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -106,14 +103,11 @@ import edu.umb.cs.imageprocessinglib.model.Recognition;
  */
 public class HelloSceneformActivity extends AppCompatActivity implements SensorEventListener, SavingFeatureDialog.OnFragmentInteractionListener {
     private  static final String TAG = "MAIN_DEBUG";
-    private static final int OWNER_STATE=1, VIEWER_STATE=2;
 //    private static final String TAG = HelloSceneformActivity.class.getSimpleName();
     private static final double MIN_OPENGL_VERSION = 3.1;
 
     //fixed file name for storing metadata of image features and recognitions
     private static final String dataFileName = "data_file";
-
-    private int state=OWNER_STATE;
 
     private TransformableNode andy;
 
@@ -132,7 +126,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
     private Session arSession;//added by bo
 
-    private float last_chk_time=0;
+//    private float last_chk_time=0;
     private boolean opencvLoaded=false;
 //    private Classifier classifier;
     private ObjectDetector objectDetector;
@@ -141,15 +135,14 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     /*** from tensorflow sample code***/
     private Handler handler;
     private long timestamp = 0; //it's actually a counter
-    private Bitmap cropCopyBitmap = null;
     private Bitmap croppedBitmap = null;
-    private Bitmap rgbFrameBitmap=null;
+//    private Bitmap rgbFrameBitmap=null;
     private Bitmap copyBitmp = null;
 
     private HandlerThread handlerThread;
-    private byte[][] yuvBytes = new byte[3][];
-    private int[] rgbBytes = null;
-    private int yRowStride;
+//    private byte[][] yuvBytes = new byte[3][];
+//    private int[] rgbBytes = null;
+//    private int yRowStride;
 
     protected int previewWidth = 0;
     protected int previewHeight = 0;
@@ -158,7 +151,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     private Integer sensorOrientation;
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
-    private Matrix frameToDisplayTransform;
+//    private Matrix frameToDisplayTransform;
     private int rotation=90;
 
     private MultiBoxTracker tracker;
@@ -167,7 +160,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     private List<Recognition> recognitions;
 
 //    private Classifier detector;
-    private BorderedText borderedText;
+//    private BorderedText borderedText;
 
     static Boolean onRecord = false;
     static Boolean onRetrieve = false;
@@ -214,18 +207,16 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
         arFragment.setOnFrameListener((frameTime, frame) -> {
             float curTime=frameTime.getStartSeconds();
             Bitmap bitmap=null;//Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
-            Image img=null;
             //if(curTime-last_chk_time<2) return;
             if(frame==null) {Log.d("myTag","frame is null"); return;}
             else Log.d("myTag","frame is not null");
             try {
                 Log.d("myTag","before acquire camera image");
-                img = frame.acquireCameraImage(); //catch the image from camera
+                Image img = frame.acquireCameraImage(); //catch the image from camera
                 String msg = img.getFormat()+":"+Integer.toString(img.getWidth())+","+Integer.toString(img.getHeight());
                 Log.d("myTag", msg);
                 //setImage(img);
 
-                //TODO: is the conversion done in correct way?
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
 
                 bitmap=MyUtils.imageToBitmap(img);
@@ -399,12 +390,10 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 if(rb.getId()==R.id.rb_owner){
                     recBtn.setEnabled(true);
                     rteBtn.setEnabled(false);
-                    state=OWNER_STATE;
                     onRetrieve=false;
                 }else{
                     recBtn.setEnabled(false);
                     rteBtn.setEnabled(true);
-                    state=VIEWER_STATE;
                     andy.setParent(null);
                 }
             }
@@ -648,7 +637,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                         long endTime = System.currentTimeMillis();
                         Log.d(TAG, "Recognition number:\t" + results.size() + " time:\t"+(endTime-startTime));
 //
-                        org.opencv.core.Rect roi = new org.opencv.core.Rect();
+//                        org.opencv.core.Rect roi = new org.opencv.core.Rect();
 //
 //                        Log.d("myTag",str);
                         for (final Recognition result : results) {
@@ -657,7 +646,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 //                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
 //                            Log.d(TAG, "main: rect before transform " + location.toString());
                             cropToFrameTransform.mapRect(location);
-                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
+//                            roi = new org.opencv.core.Rect((int)location.left, (int)location.top, (int)(location.right - location.left), (int)(location.bottom - location.top));
                             //TFLite would output negative position
                             result.setLocation(new BoxPosition(Math.max(0, location.left), Math.max(0, location.top),
                                     Math.min(previewWidth - Math.max(0, location.left), location.width()), Math.min(previewHeight - Math.max(0, location.top), location.height())));
@@ -710,7 +699,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     static int kDisThd = 400;
     private void record(Bitmap img, List<Recognition> recognitions) {
         runOnUiThread(()->{
-            FragmentManager fm=getFragmentManager();
+            FragmentManager fm = getFragmentManager();
             SavingFeatureDialog sf=new SavingFeatureDialog();
             sf.show(fm, "sf_dialog");
         });
@@ -1008,7 +997,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     static class KPoint{
         double x,y;
         boolean selected =false;
-        int[] idx;
+        int[] idx;  //The index of this kp in the corresponding array
 
         int idx1, idx2;
         KPoint(double x, double y, int len){
@@ -1062,6 +1051,105 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
     }
 
     static ImageFeature constructTemplateFP(List<ImageFeature> tIFs, float[] weights, int tNum) {
+        float sum=0;
+        for(float f : weights) sum+=f;
+        for(int i=0;i<weights.length;i++) weights[i]=weights[i]/sum;
+
+        for (int i=0; i<weights.length; i++)
+            if (weights[i]==1f)
+                return (tIFs.get(i).getSize()>tNum)? tIFs.get(i).subImageFeature(0, tNum) : tIFs.get(i);
+
+        List<KeyPoint> kp= new ArrayList<>();//(IF1.getObjectKeypoints().toList());
+        Mat des = new Mat();//new Size(IF1.getDescriptors().cols(),tNum), IF1.getDescriptors().type());
+
+        List<List<KeyPoint>> kp_list = new ArrayList();
+        for(int i=0;i<tIFs.size();i++){
+            kp_list.add((tIFs.get(i).getObjectKeypoints().toList()));
+        }
+
+        HashMap<Pair<Integer, Integer>, ArrayList<Integer>> posToGroup = new HashMap<>();
+        HashSet<Pair<Integer, Integer>> picked = new HashSet<>();
+
+        for(int i=0;i<kp_list.size();i++){
+            for(int j=0;j<kp_list.get(i).size();j++){
+                KeyPoint k = kp_list.get(i).get(j);
+                Pair<Integer, Integer> tp = new Pair(k.pt.x, k.pt.y);
+                if (!posToGroup.containsKey(tp)) {
+                    posToGroup.put(tp, new ArrayList<>());
+                }
+                posToGroup.get(tp).add(i);
+            }
+        }
+
+        int[] c_list = new int[kp_list.size()];
+        int[] p_list = new int[kp_list.size()];
+        //a rare case: the number of candidate in this permutaion is larger than wanted when the lowly ranked kp was already picked by other permutation
+        int[] c_num = new int[kp_list.size()];
+        int sum_c=0;    //the sum of number of key points in theory
+
+        for(int i=0;i<kp_list.size();i++) {
+            c_num[i] = (int)Math.floor(tNum * weights[i]);
+        }
+
+
+        for(int i=0;i<kp_list.size();i++) {
+            int j = 0;
+            for (; j < kp_list.get(i).size() && c_list[i] <= c_num[i]; j++) {
+                KeyPoint k = kp_list.get(i).get(j);
+                Pair<Integer, Integer> p = new Pair(k.pt.x, k.pt.y);
+                if (!picked.contains(p)) {
+                    picked.add(p);
+                    kp.add(k);
+                    Mat tMat=tIFs.get(i).getDescriptors().row(j);
+                    des.push_back(tMat);
+                    //increase the candidate number for every list that contains this keypoint
+                    for (int d : posToGroup.get(p)) {
+                        c_list[d]++;
+                        sum_c++;
+                    }
+                }
+            }
+            p_list[i] = j;
+        }
+
+        while(kp.size()<tNum){
+            float max_deficit=-1;
+            int candidate_idx=-1;
+            for(int i=0;i<c_list.length;i++){
+//                int n_sum = (sum_c==0)? tNum : sum_c;
+                //System.out.printf("%d:%.02f,%.02f\n",i,weights[i],(float)c_list[i]/n_sum);
+
+                float deficit=weights[i]-(float)c_list[i]/sum_c;
+                //add the feature points of list with largest deficit when it still has candidates
+                if(deficit>max_deficit && kp_list.get(i).size() > p_list[i]) {
+                    max_deficit=deficit;
+                    candidate_idx=i;
+                }
+            }
+
+            if (candidate_idx==-1) break;//can't add candidate anymore
+
+            KeyPoint k = kp_list.get(candidate_idx).get(p_list[candidate_idx]++);
+            Pair<Integer, Integer> p = new Pair(k.pt.x, k.pt.y);
+            if (picked.contains(p))
+                continue;
+            picked.add(p);
+            kp.add(k);
+            Mat tMat=tIFs.get(candidate_idx).getDescriptors().row(p_list[candidate_idx]-1);
+            des.push_back(tMat);
+            for (int d : posToGroup.get(p)) {
+                c_list[d]++;
+                sum_c++;
+            }
+        }
+
+        MatOfKeyPoint tKP = new MatOfKeyPoint();
+        tKP.fromList(kp);
+        //System.out.printf("construct FP size: %d, %s\n", kp.size(),des.size().toString());
+        return new ImageFeature(tKP, des, tIFs.get(0).getDescriptorType());
+    }
+
+    static ImageFeature bk_constructTemplateFP(List<ImageFeature> tIFs, float[] weights, int tNum) {
         //calculate ratios
         //float hr = Math.abs(hd)/(Math.abs(hd) + Math.abs(vd));
         //float vr = Math.abs(vd)/(Math.abs(hd) + Math.abs(vd));
@@ -1146,6 +1234,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
             kp.add(k);
 
+            //find the corresponding descriptor of the selected keypoint
             Mat tMat=null;
             for(int i=0;i<kp_list.size();i++){
                 if(kkp.isInList(i)){

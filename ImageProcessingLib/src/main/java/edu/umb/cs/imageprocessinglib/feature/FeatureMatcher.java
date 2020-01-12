@@ -1,5 +1,7 @@
 package edu.umb.cs.imageprocessinglib.feature;
 
+import android.util.Pair;
+
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.model.DescriptorType;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
@@ -419,30 +421,27 @@ public class FeatureMatcher {
     }
 
     private MatOfDMatch symmetryTest(ArrayList<MatOfDMatch> matches1, ArrayList<MatOfDMatch> matches2) {
-
         ArrayList<DMatch> symMatchList = new ArrayList<>();
+        HashMap<Pair<Integer, Integer>, DMatch> idToMatch = new HashMap<>();
 
         for (int i = 0; i < matches1.size(); i++) {
-            MatOfDMatch matchIterator1 = matches1.get(i);
-            if (matchIterator1.total() < 2) {
+            MatOfDMatch matchIterator = matches1.get(i);
+            if (matchIterator.total() < 2) {
                 continue;
             }
-            DMatch match1 = matchIterator1.toArray()[0];
-
-            for (int d = 0; d < matches2.size(); d++) {
-                MatOfDMatch matchIterator2 = matches2.get(d);
-                if (matchIterator2.total() < 2)
-                    continue;
-                DMatch match2 = matchIterator2.toArray()[0];
-                // Match symmetry test
-                if (match1.queryIdx == match2.trainIdx && match2.queryIdx == match1.trainIdx) {
-                    // add symmetrical match
-                    symMatchList.add(match1);
-                    break; // next match in image 1 -> image 2
-                }
-            }
+            DMatch match = matchIterator.toArray()[0];
+            idToMatch.put(new Pair<>(match.queryIdx, match.trainIdx), match);
         }
-
+        for (int i = 0; i < matches2.size(); i++) {
+            MatOfDMatch matchIterator = matches2.get(i);
+            if (matchIterator.total() < 2) {
+                continue;
+            }
+            DMatch match = matchIterator.toArray()[0];
+            Pair<Integer, Integer> key = new Pair<>(match.trainIdx, match.queryIdx);
+            if (idToMatch.containsKey(key))
+                symMatchList.add(idToMatch.get(key));
+        }
         MatOfDMatch symMatches = new MatOfDMatch();
         symMatches.fromList(symMatchList);
         return symMatches;

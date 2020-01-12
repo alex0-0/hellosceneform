@@ -1,8 +1,10 @@
 package edu.umb.cs.imageprocessinglib.feature;
+
 import android.content.Context;
 
 import edu.umb.cs.imageprocessinglib.ImageProcessor;
 import edu.umb.cs.imageprocessinglib.model.ImageFeature;
+
 import org.opencv.core.*;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -15,6 +17,7 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+
 import java.io.File;
 import java.util.Locale;
 import java.util.Scanner;
@@ -48,15 +51,14 @@ public class FeatureStorage {
 
 
     // read or write
-    public void open(String filePath, FeatureStorageFlag flags ) {
+    public void open(String filePath, FeatureStorageFlag flags) {
         try {
-            if( flags == FeatureStorageFlag.READ ) {
+            if (flags == FeatureStorageFlag.READ) {
                 open(filePath);
-            }
-            else {
+            } else {
                 create(filePath);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -66,15 +68,14 @@ public class FeatureStorage {
     public void open(String filePath) {
         try {
             file = new File(filePath);
-            if( file == null || file.isFile() == false ) {
-                System.err.println("Can not open file: " + filePath );
-            }
-            else {
+            if (file == null || file.isFile() == false) {
+                System.err.println("Can not open file: " + filePath);
+            } else {
                 isWrite = false;
                 doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file);
                 doc.getDocumentElement().normalize();
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -86,23 +87,22 @@ public class FeatureStorage {
             file = new File(filePath);
             //if file exists, overwrite it
             file.createNewFile();
-            if( file == null ) {
-                System.err.println("Can not wrtie file: " + filePath );
-            }
-            else {
+            if (file == null) {
+                System.err.println("Can not wrtie file: " + filePath);
+            } else {
                 isWrite = true;
                 doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
 
                 rootElement = doc.createElement("opencv_storage");
                 doc.appendChild(rootElement);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     public MatOfKeyPoint readKeyPoints(String tag) {
-        if( isWrite ) {
+        if (isWrite) {
             System.err.println("Try read from file with write flags");
             return null;
         }
@@ -110,14 +110,14 @@ public class FeatureStorage {
         NodeList nodelist = doc.getElementsByTagName(tag);
         MatOfKeyPoint readKPs = new MatOfKeyPoint();
 
-        for( int i = 0 ; i<nodelist.getLength() ; i++ ) {
+        for (int i = 0; i < nodelist.getLength(); i++) {
             Node node = nodelist.item(i);
 
-            if( node.getNodeType() == Node.ELEMENT_NODE ) {
-                Element element = (Element)node;
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                Element element = (Element) node;
 
                 String type_id = element.getAttribute(TYPE_ID);
-                if( KEYPOINTS_TYPE_ID.equals(type_id) == false) {
+                if (KEYPOINTS_TYPE_ID.equals(type_id) == false) {
                     System.out.println("Fault type_id ");
                 }
 
@@ -126,7 +126,7 @@ public class FeatureStorage {
                 KeyPoint[] kpArray = new KeyPoint[kpNodes.getLength()];
 
                 for (int d = 0; d < kpNodes.getLength(); d++) {
-                    Element kp = (Element)kpNodes.item(d);
+                    Element kp = (Element) kpNodes.item(d);
 
                     String classId = kp.getElementsByTagName("class_id").item(0).getTextContent();
                     String x = kp.getElementsByTagName("x").item(0).getTextContent();
@@ -154,7 +154,7 @@ public class FeatureStorage {
 
     public void writeKeyPoints(String tag, MatOfKeyPoint keyPoints) {
         try {
-            if( isWrite == false) {
+            if (isWrite == false) {
                 System.err.println("Try write to file with no write flags");
                 return;
             }
@@ -169,25 +169,25 @@ public class FeatureStorage {
                 Element k = doc.createElement(KP_TAG);
 
                 Element classId = doc.createElement("class_id");
-                classId.appendChild( doc.createTextNode( String.valueOf(kp.class_id) ));
+                classId.appendChild(doc.createTextNode(String.valueOf(kp.class_id)));
 
                 Element x = doc.createElement("x");
-                x.appendChild( doc.createTextNode( String.valueOf(kp.pt.x) ));
+                x.appendChild(doc.createTextNode(String.valueOf(kp.pt.x)));
 
                 Element y = doc.createElement("y");
-                y.appendChild( doc.createTextNode( String.valueOf(kp.pt.y) ));
+                y.appendChild(doc.createTextNode(String.valueOf(kp.pt.y)));
 
                 Element size = doc.createElement("size");
-                size.appendChild( doc.createTextNode( String.valueOf(kp.size) ));
+                size.appendChild(doc.createTextNode(String.valueOf(kp.size)));
 
                 Element angle = doc.createElement("angle");
-                angle.appendChild( doc.createTextNode( String.valueOf(kp.angle) ));
+                angle.appendChild(doc.createTextNode(String.valueOf(kp.angle)));
 
                 Element octave = doc.createElement("octave");
-                octave.appendChild( doc.createTextNode( String.valueOf(kp.octave) ));
+                octave.appendChild(doc.createTextNode(String.valueOf(kp.octave)));
 
                 Element response = doc.createElement("response");
-                response.appendChild( doc.createTextNode( String.valueOf(kp.response) ));
+                response.appendChild(doc.createTextNode(String.valueOf(kp.response)));
 
                 k.appendChild(classId);
                 k.appendChild(x);
@@ -199,14 +199,14 @@ public class FeatureStorage {
 
                 kpsRoot.appendChild(k);
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
     }
 
     public Mat readMat(String tag) {
-        if( isWrite ) {
+        if (isWrite) {
             System.err.println("Try read from file with write flags");
             return null;
         }
@@ -214,14 +214,14 @@ public class FeatureStorage {
         NodeList nodelist = doc.getElementsByTagName(tag);
         Mat readMat = null;
 
-        for( int i = 0 ; i<nodelist.getLength() ; i++ ) {
+        for (int i = 0; i < nodelist.getLength(); i++) {
             Node node = nodelist.item(i);
 
-            if( node.getNodeType() == Node.ELEMENT_NODE ) {
-                Element element = (Element)node;
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                Element element = (Element) node;
 
                 String type_id = element.getAttribute(TYPE_ID);
-                if( MAT_TYPE_ID.equals(type_id) == false) {
+                if (MAT_TYPE_ID.equals(type_id) == false) {
                     System.out.println("Fault type_id ");
                 }
 
@@ -237,68 +237,61 @@ public class FeatureStorage {
                 Scanner s = new Scanner(dataStr);
                 s.useLocale(Locale.US);
 
-                if( "f".equals(dtStr) ) {
+                if ("f".equals(dtStr)) {
                     type = CvType.CV_32F;
-                    readMat = new Mat( rows, cols, type );
+                    readMat = new Mat(rows, cols, type);
                     float fs[] = new float[1];
-                    for( int r=0 ; r<rows ; r++ ) {
-                        for( int c=0 ; c<cols ; c++ ) {
-                            if( s.hasNextFloat() ) {
+                    for (int r = 0; r < rows; r++) {
+                        for (int c = 0; c < cols; c++) {
+                            if (s.hasNextFloat()) {
                                 fs[0] = s.nextFloat();
-                            }
-                            else {
+                            } else {
                                 fs[0] = 0;
-                                System.err.println("Unmatched number of float value at rows="+r + " cols="+c);
+                                System.err.println("Unmatched number of float value at rows=" + r + " cols=" + c);
                             }
                             readMat.put(r, c, fs);
                         }
                     }
-                }
-                else if( "i".equals(dtStr) ) {
+                } else if ("i".equals(dtStr)) {
                     type = CvType.CV_32S;
-                    readMat = new Mat( rows, cols, type );
+                    readMat = new Mat(rows, cols, type);
                     int is[] = new int[1];
-                    for( int r=0 ; r<rows ; r++ ) {
-                        for( int c=0 ; c<cols ; c++ ) {
-                            if( s.hasNextInt() ) {
+                    for (int r = 0; r < rows; r++) {
+                        for (int c = 0; c < cols; c++) {
+                            if (s.hasNextInt()) {
                                 is[0] = s.nextInt();
-                            }
-                            else {
+                            } else {
                                 is[0] = 0;
-                                System.err.println("Unmatched number of int value at rows="+r + " cols="+c);
+                                System.err.println("Unmatched number of int value at rows=" + r + " cols=" + c);
                             }
                             readMat.put(r, c, is);
                         }
                     }
-                }
-                else if( "s".equals(dtStr) ) {
+                } else if ("s".equals(dtStr)) {
                     type = CvType.CV_16S;
-                    readMat = new Mat( rows, cols, type );
+                    readMat = new Mat(rows, cols, type);
                     short ss[] = new short[1];
-                    for( int r=0 ; r<rows ; r++ ) {
-                        for( int c=0 ; c<cols ; c++ ) {
-                            if( s.hasNextShort() ) {
+                    for (int r = 0; r < rows; r++) {
+                        for (int c = 0; c < cols; c++) {
+                            if (s.hasNextShort()) {
                                 ss[0] = s.nextShort();
-                            }
-                            else {
+                            } else {
                                 ss[0] = 0;
-                                System.err.println("Unmatched number of int value at rows="+r + " cols="+c);
+                                System.err.println("Unmatched number of int value at rows=" + r + " cols=" + c);
                             }
                             readMat.put(r, c, ss);
                         }
                     }
-                }
-                else if( "b".equals(dtStr) ) {
-                    readMat = new Mat( rows, cols, type );
+                } else if ("b".equals(dtStr)) {
+                    readMat = new Mat(rows, cols, type);
                     byte bs[] = new byte[1];
-                    for( int r=0 ; r<rows ; r++ ) {
-                        for( int c=0 ; c<cols ; c++ ) {
-                            if( s.hasNextByte() ) {
+                    for (int r = 0; r < rows; r++) {
+                        for (int c = 0; c < cols; c++) {
+                            if (s.hasNextByte()) {
                                 bs[0] = s.nextByte();
-                            }
-                            else {
+                            } else {
                                 bs[0] = 0;
-                                System.err.println("Unmatched number of byte value at rows="+r + " cols="+c);
+                                System.err.println("Unmatched number of byte value at rows=" + r + " cols=" + c);
                             }
                             readMat.put(r, c, bs);
                         }
@@ -311,7 +304,7 @@ public class FeatureStorage {
 
     public void writeMat(String tag, Mat mat) {
         try {
-            if( isWrite == false) {
+            if (isWrite == false) {
                 System.err.println("Try write to file with no write flags");
                 return;
             }
@@ -321,42 +314,38 @@ public class FeatureStorage {
             rootElement.appendChild(matrix);
 
             Element rows = doc.createElement("rows");
-            rows.appendChild( doc.createTextNode( String.valueOf(mat.rows()) ));
+            rows.appendChild(doc.createTextNode(String.valueOf(mat.rows())));
 
             Element cols = doc.createElement("cols");
-            cols.appendChild( doc.createTextNode( String.valueOf(mat.cols()) ));
+            cols.appendChild(doc.createTextNode(String.valueOf(mat.cols())));
 
             Element dt = doc.createElement("dt");
             String dtStr;
             int type = mat.type();
-            if(type == CvType.CV_32F ) { // type == CvType.CV_32FC1
+            if (type == CvType.CV_32F) { // type == CvType.CV_32FC1
                 dtStr = "f";
-            }
-            else if( type == CvType.CV_32S ) { // type == CvType.CV_32SC1
+            } else if (type == CvType.CV_32S) { // type == CvType.CV_32SC1
                 dtStr = "i";
-            }
-            else if( type == CvType.CV_16S  ) { // type == CvType.CV_16SC1
+            } else if (type == CvType.CV_16S) { // type == CvType.CV_16SC1
                 dtStr = "s";
-            }
-            else if( type == CvType.CV_8U ){ // type == CvType.CV_8UC1
+            } else if (type == CvType.CV_8U) { // type == CvType.CV_8UC1
                 dtStr = "b";
-            }
-            else {
+            } else {
                 dtStr = "unknown";
             }
-            dt.appendChild( doc.createTextNode( dtStr ));
+            dt.appendChild(doc.createTextNode(dtStr));
 
             Element data = doc.createElement("data");
-            String dataStr = dataStringBuilder( mat );
-            data.appendChild( doc.createTextNode( dataStr ));
+            String dataStr = dataStringBuilder(mat);
+            data.appendChild(doc.createTextNode(dataStr));
 
             // append all to matrix
-            matrix.appendChild( rows );
-            matrix.appendChild( cols );
-            matrix.appendChild( dt );
-            matrix.appendChild( data );
+            matrix.appendChild(rows);
+            matrix.appendChild(cols);
+            matrix.appendChild(dt);
+            matrix.appendChild(data);
 
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -367,51 +356,47 @@ public class FeatureStorage {
         int cols = mat.cols();
         int type = mat.type();
 
-        if( type == CvType.CV_32F ) {
+        if (type == CvType.CV_32F) {
             float fs[] = new float[1];
-            for( int r=0 ; r<rows ; r++ ) {
-                for( int c=0 ; c<cols ; c++ ) {
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
                     mat.get(r, c, fs);
-                    sb.append( String.valueOf(fs[0]));
-                    sb.append( ' ' );
+                    sb.append(String.valueOf(fs[0]));
+                    sb.append(' ');
                 }
-                sb.append( '\n' );
+                sb.append('\n');
             }
-        }
-        else if( type == CvType.CV_32S ) {
+        } else if (type == CvType.CV_32S) {
             int is[] = new int[1];
-            for( int r=0 ; r<rows ; r++ ) {
-                for( int c=0 ; c<cols ; c++ ) {
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
                     mat.get(r, c, is);
-                    sb.append( String.valueOf(is[0]));
-                    sb.append( ' ' );
+                    sb.append(String.valueOf(is[0]));
+                    sb.append(' ');
                 }
-                sb.append( '\n' );
+                sb.append('\n');
             }
-        }
-        else if( type == CvType.CV_16S ) {
+        } else if (type == CvType.CV_16S) {
             short ss[] = new short[1];
-            for( int r=0 ; r<rows ; r++ ) {
-                for( int c=0 ; c<cols ; c++ ) {
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
                     mat.get(r, c, ss);
-                    sb.append( String.valueOf(ss[0]));
-                    sb.append( ' ' );
+                    sb.append(String.valueOf(ss[0]));
+                    sb.append(' ');
                 }
-                sb.append( '\n' );
+                sb.append('\n');
             }
-        }
-        else if( type == CvType.CV_8U ) {
+        } else if (type == CvType.CV_8U) {
             byte bs[] = new byte[1];
-            for( int r=0 ; r<rows ; r++ ) {
-                for( int c=0 ; c<cols ; c++ ) {
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
                     mat.get(r, c, bs);
-                    sb.append( String.valueOf(bs[0]));
-                    sb.append( ' ' );
+                    sb.append(String.valueOf(bs[0]));
+                    sb.append(' ');
                 }
-                sb.append( '\n' );
+                sb.append('\n');
             }
-        }
-        else {
+        } else {
             sb.append("unknown type\n");
         }
 
@@ -421,7 +406,7 @@ public class FeatureStorage {
 
     public void release() {
         try {
-            if( isWrite == false) {
+            if (isWrite == false) {
                 System.err.println("Try release of file with no write flags");
                 return;
             }
@@ -436,20 +421,20 @@ public class FeatureStorage {
 
             // do it
             transformer.transform(source, result);
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
 
-    public void saveFPtoFile(String file, ImageFeature imageFeature ){
+    public void saveFPtoFile(String file, ImageFeature imageFeature) {
         open(file, FeatureStorage.FeatureStorageFlag.WRITE);
         writeMat("des", imageFeature.getDescriptors());
         writeKeyPoints("keypoint", imageFeature.getObjectKeypoints());
         release();
     }
 
-    public ImageFeature loadFPfromFile(String filePath){
+    public ImageFeature loadFPfromFile(String filePath) {
         open(filePath);
         Mat des = readMat("des");
         MatOfKeyPoint kps = readKeyPoints("keypoint");

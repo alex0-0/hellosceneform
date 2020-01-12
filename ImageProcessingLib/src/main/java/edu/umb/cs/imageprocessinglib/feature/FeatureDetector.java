@@ -155,7 +155,7 @@ public class FeatureDetector {
 //        List<Integer> sizes = fpTrack.stream().map(o->o.size()).collect(Collectors.toList());
         for (int i : sizes) {
             if (i < num)
-                num = i/10*10;
+                num = i / 10 * 10;
         }
 
         List<Integer> candidates = maxMin(fpTrack, num, minTracker);
@@ -250,35 +250,16 @@ print out matching results
             Mat d = new Mat();
             extractFeatures(img, k, d, type);
             MatOfDMatch m = FeatureMatcher.getInstance().BFMatchFeature(d, tDes, type);
-            List<DMatch> mL = new ArrayList<>();
 
-            Map<Integer, List<DMatch>> recorder = new HashMap<>();
+            HashSet<Integer> recorder = new HashSet<>();
+//            Map<Integer, List<DMatch>> recorder = new HashMap<>();
             for (DMatch match : m.toList()) {
                 //filter out those unqualified matches
                 if (match.distance < disThd) {
-                    if (recorder.get(match.trainIdx) == null) {
-                        recorder.put(match.trainIdx, new ArrayList<>());
-                    }
-                    recorder.get(match.trainIdx).add(match);
+                    recorder.add(match.trainIdx);
                 }
             }
-            //if multiple query points are matched to the same template point, keep the match with minimum distance
-            for (Integer i : recorder.keySet()) {
-                DMatch minDisMatch = null;
-                float minDis = Float.MAX_VALUE;
-                for (DMatch dMatch : recorder.get(i)) {
-                    if (dMatch.distance < minDis) {
-                        minDisMatch = dMatch;
-                        minDis = dMatch.distance;
-                    }
-                }
-                if (minDisMatch != null)
-                    mL.add(minDisMatch);
-            }
-            List<Integer> tIdxs = new ArrayList<>();
-            for (DMatch o : mL) {
-                tIdxs.add(o.trainIdx);
-            }
+            List<Integer> tIdxs = new ArrayList<>(recorder);
             ret.add(tIdxs);
 //            ret.add(mL.stream().map(o->o.trainIdx).collect(Collectors.toList()));
         }
@@ -296,110 +277,57 @@ print out matching results
     List<Integer> maxMin(List<List<Integer>> input, int num, List<Integer> minTracker) {
         List<Integer> ret = new ArrayList<>();
         List<Integer> counters = new ArrayList<>();
-        HashMap<Integer, int[]> tracker = new HashMap<>();   //using set rather than list just in case the input is not properly preprocessed
-
-        HashMap<Integer, ArrayList<Integer>> tempHS=new HashMap<Integer, ArrayList<Integer>>();
-        //record input into a hashmap, which use candidate as key and a list containing matched target as value
+        HashSet<Integer> keys = new HashSet<>();
+        ArrayList<HashSet<Integer>> tracker = new ArrayList<>();   //using set rather than list just in case the input is not properly preprocessed
         for (int i=0; i < input.size(); i++) {
+            tracker.add(new HashSet<>());
+            counters.add(0);
             for (int k=0; k < input.get(i).size(); k++) {
-                int key = input.get(i).get(k);
-
-                if(tempHS.get(key)==null){
-                    tempHS.put(key,new ArrayList());
-                }
-                tempHS.get(key).add(i);
-                /*
-                if (tracker.get(key) == null) {
-                    tracker.put(key, new HashSet<>());
-                }
-                //for every candidates, use a list to record its matched target
-                tracker.get(key).add(i);*/
+                tracker.get(i).add(k);
+                keys.add(k);
             }
         }
-
-        Iterator it = tempHS.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry pair = (Map.Entry)it.next();
-            Integer key=(Integer)pair.getKey();
-            ArrayList al=(ArrayList)pair.getValue();
-            int[] temp_array=new int[al.size()];
-            for(int i=0;i<al.size();i++) temp_array[i]=(Integer)al.get(i);
-            tracker.put(key,temp_array);
-            it.remove(); // avoids a ConcurrentModificationException
-        }
-
-        for (int i=0; i < input.size(); i++)
-            counters.add(0);
 
         int min = 0;
         while (ret.size() < num) {
             List<Integer> mins = new ArrayList<>();
             //find out minimums
             for (int i=0; i < counters.size(); i++) {
-                if (counters.get(i)<=min)
+                if (counters.get(i) == min)
                     mins.add(i);
             }
             int max = 0;
             int maxKey = -1;
-            //TODO:tens of times cost on first calling
-            int[] mins_array=new int[mins.size()];
-            for(int i=0;i<mins.size();i++) mins_array[i]=mins.get(i);
 
-
-            for (int i : tracker.keySet()) {
-                int c = 0;  //count how many mins can get increased if this candidate is selected
-                int[] ts = tracker.get(i);
-                int min_start=0;
-
-                for(int ii:ts){
-
-                    for (int j=min_start;j<mins.size();j++) {
-                        long t2s=System.currentTimeMillis();
-
-                        int m=mins_array[j];//mins.get(j);
-                        long t2e=System.currentTimeMillis();
-
-                        if(m<ii) continue;
-                        if(m>ii){
-                            min_start=j;
-                            break;
-                        }
-                        if (ii == m) {
-                            c++;
-                            min_start=j+1;
-                            break;
-                        }
-                    }
-                }
-                /*
-                for (int m : mins) {
-                    if (ts.contains(m))
+            for (int i : keys) {
+                int c = 0;
+                for (int j = 0; j < mins.size(); j++)
+                    if (tracker.get(j).contains(i))
                         c++;
-                }
-                */
                 if (c > max) {
                     max = c;
                     maxKey = i;
                 }
-
+                if (c == mins.size())
+                    break;
             }
-
             //no more optimization can be done, comment this condition if you wanna keep adding new candidate
             if (maxKey == -1)
                 break;
 
             //update
             //all mins get a new matched candidate
-            if (max >= mins.size())
+            if (max == mins.size())
                 min++;
             if (maxKey != -1) {
                 ret.add(maxKey);
+                keys.remove(maxKey);
                 if (minTracker != null)
                     minTracker.add(min);
             }
-            for (int i : tracker.get(maxKey))
-                counters.set(i, counters.get(i)+1);
-            tracker.remove(maxKey);
+            for (int i = 0; i < counters.size(); i++)
+                if (tracker.get(i).contains(maxKey))
+                    counters.set(i, counters.get(i) + 1);
         }
 
 //        return new Pair<Integer, List<Integer>>(min, ret);
