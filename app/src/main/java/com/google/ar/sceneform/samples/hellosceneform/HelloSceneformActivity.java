@@ -458,6 +458,7 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
 
     void loadData() {
         if (rs==null) {
+            long startTime = System.currentTimeMillis();
             FeatureStorage fs = new FeatureStorage();
             String data = MyUtils.readFromFile(dataFileName, this);
             rs = new HashMap<>();
@@ -493,6 +494,8 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                 //bs.put(rec[0],new BoxPosition(new Float(rec[4]), new Float(rec[3]),
                 //        new Float(rec[6])-new Float(rec[4]),new Float(rec[5])-new Float(rec[3])));
             }
+            long endTime = System.currentTimeMillis();
+            Log.d("ar_timer", String.format("loading data time:%d", endTime-startTime));
         }
         runOnUiThread(()->{
             Toast.makeText(getApplicationContext(), "Data loaded", Toast.LENGTH_SHORT).show();
@@ -630,12 +633,11 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
                     @Override
                     public void run() {
 
-                        Log.d("myTag","before recognizeimage");
                         final long startTime = System.currentTimeMillis();
                         final List<Recognition> results = objectDetector.recognizeImage(croppedBitmap);
 //                        final List<Recognition> results = objectDetector.recognizeImage(rgbFrameBitmap);
                         long endTime = System.currentTimeMillis();
-                        Log.d(TAG, "Recognition number:\t" + results.size() + " time:\t"+(endTime-startTime));
+                        Log.d("ar_timer", "Recognition number:\t" + results.size() + " time:\t"+(endTime-startTime));
 //
 //                        org.opencv.core.Rect roi = new org.opencv.core.Rect();
 //
@@ -719,49 +721,98 @@ public class HelloSceneformActivity extends AppCompatActivity implements SensorE
             Rect roi = new Rect(location.getLeftInt(), location.getTopInt(), location.getWidthInt(), location.getHeightInt());
             Mat tMat = new Mat(mat, roi);
 
+
             data.append("\n" + r.getTitle() + "\t" + r.getConfidence() + "\t" + r.getUuid() //recognition
                     + "\t" + location.getTop() + "\t" + location.getLeft() + "\t" + location.getBottom() + "\t" + location.getRight()); //location
 
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+                        kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_left", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToLeftPerspective(tMat, 5f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_right", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToRightPerspective(tMat, 5f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_bottom", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToBottomPerspective(tMat, 5f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
+                        kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_top", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.changeToTopPerspective(tMat, 5f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_up", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, 0.05f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
             new Thread(() -> {
+                long startTime = System.currentTimeMillis();
+                ImageFeature imf = ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, -0.05f, 10),
+                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null);
+                long endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("extraction time:%d", endTime-startTime));
                 FeatureStorage fs = new FeatureStorage();
-                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down",
-                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, -0.05f, 10),
-                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                startTime = System.currentTimeMillis();
+                fs.saveFPtoFile( dirPath + "/" + r.getUuid() + "_scale_down", imf);
+//                        ImageProcessor.extractRobustFeatures(tMat, ImageProcessor.scaleImage(tMat, -0.05f, 10),
+//                                kTemplateFPNum, kDisThd, DescriptorType.ORB, null));
+                endTime = System.currentTimeMillis();
+                Log.d("ar_timer", String.format("saving data time:%d", endTime-startTime));
                 c.getAndIncrement();
             }).start();
         }
